@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package match;
+
+enum Type {
+	Buy = 0;
+	Sell = 1;
+}
