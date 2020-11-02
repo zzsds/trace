@@ -5,15 +5,21 @@ import (
 	"log"
 
 	"github.com/zzsds/trace"
+	"github.com/zzsds/trace/queue"
 )
 
 func main() {
-	trace := trace.NewTrace(func(o *trace.Options) {
+	t := trace.NewTrace(func(o *trace.Options) {
 		o.Name = "New Product"
 	})
 
-	log.Println(trace.Name())
-	go trace.Run()
+	log.Println(t.Name())
+	go t.Run()
+
+	q := queue.NewQueue(func(o *queue.Options) {
+		o.Name = "Test"
+	})
+	log.Println(q.Name(), q.Length())
 
 	select {}
 	fmt.Println(123)
