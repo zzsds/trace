@@ -17,7 +17,7 @@ type Server interface {
 	Pop() *Node
 	Header() *Node
 	Tailed() *Node
-	Reverse() Server
+	Reverse()
 }
 
 type (
@@ -66,6 +66,11 @@ func (h *Queue) Header() *Node {
 // Tailed ...
 func (h *Queue) Tailed() *Node {
 	return h.Tail
+}
+
+// Reverse ...
+func (h *Queue) Reverse() {
+
 }
 
 // Get ...
