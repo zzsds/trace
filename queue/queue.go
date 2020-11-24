@@ -55,7 +55,7 @@ func (h *Queue) Length() int {
 
 // Name ...
 func (h *Queue) Name() string {
-	return h.opts.Name
+	return h.opts.name
 }
 
 // Header ...
@@ -70,6 +70,8 @@ func (h *Queue) Tailed() *Node {
 
 // Reverse ...
 func (h *Queue) Reverse() {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
 
 }
 
@@ -97,6 +99,7 @@ func (h *Queue) Unshift(node *Node) bool {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
 	node.Sort = 0
+	node.Next = h.Head
 	head := h.Head
 	for head != nil {
 		head.Sort++
@@ -161,12 +164,12 @@ func (h *Queue) Pop() *Node {
 }
 
 // BeforeAdd 之前插入
-func (h *Queue) BeforeAdd(before, value interface{}) error {
+func (h *Queue) BeforeAdd(before *Node, value *Node) error {
 	return nil
 }
 
 // AfterAdd 之后插入
-func (h *Queue) AfterAdd(after, value interface{}) error {
+func (h *Queue) AfterAdd(after *Node, value *Node) error {
 	return nil
 }
 
@@ -176,7 +179,7 @@ func (h *Queue) Unique() error {
 }
 
 // Replace 替换
-func (h *Queue) Replace(old, value interface{}) error {
+func (h *Queue) Replace(old *Node, new *Node) error {
 	return nil
 }
 

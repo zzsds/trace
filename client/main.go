@@ -7,7 +7,7 @@ import (
 	"github.com/zzsds/trace"
 	"github.com/zzsds/trace/queue"
 )
-
+//go:generate go run main.go
 func main() {
 	t := trace.NewTrace(func(o *trace.Options) {
 		o.Name = "New Product"
@@ -16,9 +16,7 @@ func main() {
 	log.Println(t.Name())
 	go t.Run()
 
-	q := queue.NewQueue(func(o *queue.Options) {
-		o.Name = "Test"
-	})
+	q := queue.NewQueue(queue.Name("Buy"))
 	log.Println(q.Name(), q.Length())
 
 	select {}

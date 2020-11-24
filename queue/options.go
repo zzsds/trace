@@ -4,8 +4,9 @@ import "sync"
 
 // Options ...
 type Options struct {
-	Name  string
 	mutex *sync.RWMutex
+	name  string
+	size  int
 }
 
 // Option ...
@@ -19,4 +20,11 @@ func newOptions(opts ...Option) Options {
 		o(&opt)
 	}
 	return opt
+}
+
+// Name ...
+func Name(name string) Option {
+	return func(o *Options) {
+		o.name = name
+	}
 }

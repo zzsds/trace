@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
-	"strconv"
 	"testing"
 	"time"
 )
@@ -35,12 +34,8 @@ var (
 )
 
 func TestMain(t *testing.M) {
-	buy = NewQueue(func(o *Options) {
-		o.Name = "BUY"
-	})
-	sell = NewQueue(func(o *Options) {
-		o.Name = "SELL"
-	})
+	buy = NewQueue(Name("BUY"))
+	sell = NewQueue(Name("SELL"))
 	t.Run()
 }
 
@@ -95,19 +90,18 @@ func BenchmarkQueueUnshift(t *testing.B) {
 	i := 0
 	rand.Seed(time.Now().Unix())
 	for i < t.N {
-		buy.Unshift(&Node{Data: NewData(rand.Intn(10))})
-		// buy.Push(&Node{Data: NewData(rand.Intn(10))})
+		// buy.Unshift(&Node{Data: NewData(rand.Intn(10))})
+		buy.Push(&Node{Data: NewData(rand.Intn(10))})
 		i++
 	}
-
-	t.Log(buy.Length(), "success")
+	t.Log(buy.Length(), t.N, "success")
 }
 
 func TestQueuePush(t *testing.T) {
 	q := NewQueue()
 	i := 0
 	rand.Seed(time.Now().Unix())
-	for i < 100000000 {
+	for i < 1000000 {
 		i++
 		q.Push(&Node{Data: NewData(rand.Intn(8))})
 	}
@@ -115,37 +109,5 @@ func TestQueuePush(t *testing.T) {
 	for i < 10 {
 		t.Log(*q.Get(uint(i)).Data)
 		i++
-	}
-}
-
-type account struct {
-	name  string
-	age   int
-	total float64
-}
-
-func TestArrayPointer(t *testing.T) {
-	arr := make([]*account, 0, 20)
-	for i := 0; i < 20; i++ {
-		arr = append(arr, &account{
-			name:  strconv.Itoa(i),
-			age:   i,
-			total: 0.25,
-		})
-	}
-	index := 0
-	demo := &account{}
-	for k, v := range arr {
-		if k == 5 {
-			demo = v
-			index = k
-			continue
-		}
-	}
-	demo.name = "jayden"
-	arr[index].total -= 0.02
-
-	for _, v := range arr {
-		fmt.Println(*v)
 	}
 }
