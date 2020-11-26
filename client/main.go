@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/zzsds/trace"
+	"github.com/zzsds/trade"
 	"github.com/zzsds/trade/queue"
 )
 
 //go:generate go run main.go
 func main() {
-	t := trace.NewTrace(func(o *trace.Options) {
+	t := trade.Newtrade(func(o *trade.Options) {
 		o.Name = "New Product"
 	})
 

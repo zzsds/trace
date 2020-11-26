@@ -1,4 +1,4 @@
-package trace
+package trade
 
 import (
 	"errors"
@@ -12,13 +12,13 @@ var (
 	errMissingName = errors.New("missing service name")
 )
 
-// Trace 交易
+// trade 交易
 type Service struct {
 	opts Options
 }
 
-// NewTrace 初始化
-func NewTrace(opts ...Option) *Service {
+// Newtrade 初始化
+func Newtrade(opts ...Option) *Service {
 	return &Service{
 		opts: newOptions(opts...),
 	}
@@ -47,7 +47,7 @@ func (s *Service) Options() Options {
 }
 
 func (s *Service) String() string {
-	return "trace"
+	return "trade"
 }
 
 // Start ...

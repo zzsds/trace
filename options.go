@@ -1,4 +1,4 @@
-package trace
+package trade
 
 // Options options
 type Options struct {
@@ -15,7 +15,7 @@ type Options struct {
 
 func newOptions(opts ...Option) Options {
 	opt := Options{
-		Name:   "Trace",
+		Name:   "trade",
 		Signal: true,
 	}
 
