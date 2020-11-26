@@ -18,6 +18,7 @@ type Server interface {
 	Header() *Node
 	Tailed() *Node
 	Reverse()
+	Buffer() <-chan Node
 }
 
 type (
@@ -33,19 +34,22 @@ type (
 		Prev *Node
 		Next *Node
 		Data *Data
-		Sort uint
 	}
 	// Data ...
 	Data struct {
 		UUID     string
 		CreateAt time.Time
+		ExpireAt *time.Time
 		Content  interface{}
 	}
 )
 
 // NewQueue new queue
 func NewQueue(opts ...Option) Server {
-	return &Queue{opts: newOptions(opts...), Size: 0, Head: nil, Tail: nil}
+	queue := &Queue{opts: newOptions(opts...), Size: 0, Head: nil, Tail: nil}
+	// 启动过期监听
+	go queue.expireListen()
+	return queue
 }
 
 // Length ...
@@ -72,7 +76,11 @@ func (h *Queue) Tailed() *Node {
 func (h *Queue) Reverse() {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
+}
 
+// Buffer 获取缓存
+func (h *Queue) Buffer() <-chan Node {
+	return h.opts.buffer
 }
 
 // Get ...
@@ -85,12 +93,6 @@ func (h *Queue) Get(index uint) *Node {
 	}
 	node := h.Head
 
-	for {
-		if node.Sort == index {
-			break
-		}
-		node = node.Next
-	}
 	return node
 }
 
@@ -98,13 +100,6 @@ func (h *Queue) Get(index uint) *Node {
 func (h *Queue) Unshift(node *Node) bool {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
-	node.Sort = 0
-	node.Next = h.Head
-	head := h.Head
-	for head != nil {
-		head.Sort++
-		head = head.Next
-	}
 	node.Next = h.Head
 	h.Head = node
 	h.Size++
@@ -135,7 +130,6 @@ func (h *Queue) Push(node *Node) bool {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
 
-	node.Sort = uint(h.Size)
 	if h.Size == 0 {
 		h.Head = node
 		h.Tail = node
@@ -183,6 +177,48 @@ func (h *Queue) Replace(old *Node, new *Node) error {
 	return nil
 }
 
+// Delete 替换
+func (h *Queue) Delete(node *Node) error {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
+	if h.Size <= 0 {
+		return nil
+	}
+
+	if node.Prev == nil {
+		h.Head = node.Next
+		node.Next.Prev = nil
+		return nil
+	}
+
+	if node.Next == nil {
+		node.Prev.Next = nil
+		h.Tail = node.Prev
+		return nil
+	}
+
+	h.Size--
+	node.Prev.Next = node.Next
+	node.Next.Prev = node.Prev
+	return nil
+}
+
+// expireListen ...
+func (h *Queue) expireListen() {
+	go func() {
+		for {
+			node := h.Head
+			for node != nil {
+				if node.Data.ExpireAt != nil && time.Now().After(*node.Data.ExpireAt) {
+					h.opts.buffer <- *node
+					h.Delete(node)
+				}
+				node = node.Next
+			}
+		}
+	}()
+}
+
 // NewData ...
 func NewData(content interface{}) *Data {
 	uuid, _ := uuid.NewUUID()
@@ -190,6 +226,17 @@ func NewData(content interface{}) *Data {
 		UUID:     uuid.String(),
 		CreateAt: time.Now(),
 		Content:  content,
+	}
+}
+
+// NewExpireData ...
+func NewExpireData(content interface{}, expire *time.Time) *Data {
+	uuid, _ := uuid.NewUUID()
+	return &Data{
+		UUID:     uuid.String(),
+		CreateAt: time.Now(),
+		Content:  content,
+		ExpireAt: expire,
 	}
 }
 

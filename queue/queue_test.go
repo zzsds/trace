@@ -2,6 +2,7 @@ package queue
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -45,6 +46,7 @@ func TestQueueHandle(t *testing.T) {
 		Price  float64
 		Number uint
 	}
+
 	t.Run("Push", func(t *testing.T) {
 		rand.Seed(time.Now().Unix())
 		for i := 0; i < 3; i++ {
@@ -76,6 +78,30 @@ func TestQueueHandle(t *testing.T) {
 		buy.Reverse()
 	})
 	t.Log("success")
+
+	now := time.Now().Add(3 * time.Second)
+	t.Log(now)
+	buy.Unshift(&Node{Data: NewExpireData(
+		push{
+			Name:   "jayden",
+			Number: 100000,
+			Price:  10000,
+		}, &now)})
+
+	t.Run("PrintExpire", TestQueuePrint)
+	go func() {
+		for {
+			select {
+			case buf := <-buy.Buffer():
+				fmt.Println(buf.Data.ExpireAt)
+			case <-time.After(10 * time.Second):
+				log.Fatal("10 超时")
+			}
+		}
+	}()
+	time.Sleep(4 * time.Second)
+
+	t.Run("PrintDelete", TestQueuePrint)
 }
 
 func TestQueuePrint(t *testing.T) {

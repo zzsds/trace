@@ -4,9 +4,10 @@ import "sync"
 
 // Options ...
 type Options struct {
-	mutex *sync.RWMutex
-	name  string
-	size  int
+	mutex  *sync.RWMutex
+	name   string
+	size   int
+	buffer chan Node
 }
 
 // Option ...
@@ -14,7 +15,8 @@ type Option func(*Options)
 
 func newOptions(opts ...Option) Options {
 	opt := Options{
-		mutex: &sync.RWMutex{},
+		mutex:  &sync.RWMutex{},
+		buffer: make(chan Node),
 	}
 	for _, o := range opts {
 		o(&opt)
