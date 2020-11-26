@@ -192,3 +192,9 @@ func NewData(content interface{}) *Data {
 		Content:  content,
 	}
 }
+
+// AddData 插入数据到队列
+func (h *Queue) AddData(content interface{}) {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
+}

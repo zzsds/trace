@@ -5,8 +5,9 @@ import (
 	"log"
 
 	"github.com/zzsds/trace"
-	"github.com/zzsds/trace/queue"
+	"github.com/zzsds/trade/queue"
 )
+
 //go:generate go run main.go
 func main() {
 	t := trace.NewTrace(func(o *trace.Options) {

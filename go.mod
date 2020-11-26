@@ -1,4 +1,4 @@
-module github.com/zzsds/trace
+module github.com/zzsds/trade
 
 go 1.14
 
