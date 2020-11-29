@@ -4,29 +4,13 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"reflect"
 	"testing"
 	"time"
 )
 
-func TestNewQueue(t *testing.T) {
-	type args struct {
-		opts []Option
-	}
-	tests := []struct {
-		name string
-		args args
-		want Server
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := NewQueue(tt.args.opts...); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewQueue() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+func ExampleQueue() {
+	queue := NewQueue()
+	fmt.Println(queue.Name())
 }
 
 var (
@@ -50,7 +34,7 @@ func TestQueueHandle(t *testing.T) {
 	t.Run("Push", func(t *testing.T) {
 		rand.Seed(time.Now().Unix())
 		for i := 0; i < 3; i++ {
-			buy.Push(&Node{Data: NewData(push{
+			buy.Push(&Node{data: NewData(push{
 				Name:   fmt.Sprintf("%s-%d", t.Name(), i),
 				Number: uint(i),
 				Price:  1,
@@ -59,7 +43,7 @@ func TestQueueHandle(t *testing.T) {
 	})
 	t.Run("Unshift", func(t *testing.T) {
 		for i := 0; i < 6; i++ {
-			buy.Unshift(&Node{Data: NewData(push{
+			buy.Unshift(&Node{data: NewData(push{
 				Name:   fmt.Sprintf("%s-%d", t.Name(), i),
 				Number: uint(i),
 				Price:  1,
@@ -68,10 +52,10 @@ func TestQueueHandle(t *testing.T) {
 	})
 	t.Run("Print", TestQueuePrint)
 	t.Run("Shift", func(t *testing.T) {
-		fmt.Println(*buy.Shift().Data)
+		fmt.Println(*buy.Shift().data)
 	})
 	t.Run("Pop", func(t *testing.T) {
-		fmt.Println(*buy.Pop().Data)
+		fmt.Println(*buy.Pop().data)
 	})
 	// t.Run("Print", TestQueuePrint)
 	t.Run("Reverse", func(t *testing.T) {
@@ -81,11 +65,20 @@ func TestQueueHandle(t *testing.T) {
 
 	now := time.Now().Add(3 * time.Second)
 	t.Log(now)
-	buy.Unshift(&Node{Data: NewExpireData(
+	expire := &Node{data: NewExpireData(
 		push{
 			Name:   "jayden",
 			Number: 100000,
 			Price:  10000,
+		}, &now)}
+	buy.Unshift(expire)
+
+	now = now.Add(4 * time.Second)
+	buy.BeforeAdd(expire, &Node{data: NewExpireData(
+		push{
+			Name:   "wangjuan",
+			Number: 1000,
+			Price:  1000,
 		}, &now)})
 
 	t.Run("PrintExpire", TestQueuePrint)
@@ -93,7 +86,7 @@ func TestQueueHandle(t *testing.T) {
 		for {
 			select {
 			case buf := <-buy.Buffer():
-				fmt.Println(buf.Data.ExpireAt)
+				fmt.Println(buf.data.ExpireAt)
 			case <-time.After(10 * time.Second):
 				log.Fatal("10 超时")
 			}
@@ -107,8 +100,8 @@ func TestQueueHandle(t *testing.T) {
 func TestQueuePrint(t *testing.T) {
 	head := buy.Header()
 	for head != nil {
-		t.Log(head.Data, head.Sort)
-		head = head.Next
+		t.Log(head.data)
+		head = head.next
 	}
 }
 
@@ -116,11 +109,11 @@ func BenchmarkQueueUnshift(t *testing.B) {
 	i := 0
 	rand.Seed(time.Now().Unix())
 	for i < t.N {
-		// buy.Unshift(&Node{Data: NewData(rand.Intn(10))})
-		buy.Push(&Node{Data: NewData(rand.Intn(10))})
+		// buy.Unshift(&Node{data: NewData(rand.Intn(10))})
+		buy.Push(&Node{data: NewData(rand.Intn(10))})
 		i++
 	}
-	t.Log(buy.Length(), t.N, "success")
+	t.Log(buy.Len(), t.N, "success")
 }
 
 func TestQueuePush(t *testing.T) {
@@ -129,11 +122,11 @@ func TestQueuePush(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	for i < 1000000 {
 		i++
-		q.Push(&Node{Data: NewData(rand.Intn(8))})
+		q.Push(&Node{data: NewData(rand.Intn(8))})
 	}
 	i = 0
 	for i < 10 {
-		t.Log(*q.Get(uint(i)).Data)
+		t.Log(*q.Get(uint(i)).data)
 		i++
 	}
 }
