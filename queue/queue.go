@@ -27,7 +27,23 @@ type Server interface {
 type Node struct {
 	prev, next *Node
 	queue      *Queue
-	data       *Data
+	Data       *Data
+}
+
+// NewNode ...
+func NewNode(data *Data) *Node {
+	node := new(Node).init()
+	node.Data = data
+	return node
+}
+
+// Next returns the next list Node or nil.
+func (e *Node) init() *Node {
+	e.Data = nil
+	e.prev = nil
+	e.next = nil
+	e.queue = nil
+	return e
 }
 
 // Next returns the next list Node or nil.
@@ -76,6 +92,14 @@ func (h *Queue) Len() int { return h.len }
 // Name ...
 func (h *Queue) Name() string {
 	return h.opts.name
+}
+
+// Front returns the first element of list l or nil if the list is empty.
+func (h *Queue) Front() *Node {
+	if h.len == 0 {
+		return nil
+	}
+	return h.head.next
 }
 
 // Header ...
@@ -163,8 +187,10 @@ func (h *Queue) Pop() *Node {
 	if h.len <= 0 {
 		return nil
 	}
-	tail := h.tail.prev
-	h.tail = tail
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
+	tail := h.tail
+	h.tail = tail.prev
 	h.tail.next = nil
 
 	return tail
@@ -232,7 +258,7 @@ func (h *Queue) expireListen() {
 		for {
 			node := h.head
 			for node != nil {
-				if node.data.ExpireAt != nil && time.Now().After(*node.data.ExpireAt) {
+				if node.Data.ExpireAt != nil && time.Now().After(*node.Data.ExpireAt) {
 					h.opts.buffer <- *node
 					h.Remove(node)
 				}
