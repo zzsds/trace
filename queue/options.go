@@ -2,21 +2,21 @@ package queue
 
 import "sync"
 
-// Options ...
-type Options struct {
+// options ...
+type options struct {
 	mutex  *sync.RWMutex
 	name   string
 	size   int
-	buffer chan Node
+	buffer chan interface{}
 }
 
 // Option ...
-type Option func(*Options)
+type Option func(*options)
 
-func newOptions(opts ...Option) Options {
-	opt := Options{
+func newOptions(opts ...Option) options {
+	opt := options{
 		mutex:  &sync.RWMutex{},
-		buffer: make(chan Node),
+		buffer: make(chan interface{}),
 	}
 	for _, o := range opts {
 		o(&opt)
@@ -26,7 +26,7 @@ func newOptions(opts ...Option) Options {
 
 // Name ...
 func Name(name string) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.name = name
 	}
 }

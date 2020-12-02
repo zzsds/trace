@@ -10,25 +10,31 @@ import (
 type Server interface {
 	Len() int
 	Name() string
-	Get(index uint) *Node
-	Push(node *Node) bool
-	Unshift(node *Node) bool
+	Front() *Node
+	Get(index int) *Data
+	Push(*Data) *Node
+	Unshift(*Data) *Node
 	Shift() *Node
 	Pop() *Node
-	BeforeAdd(*Node, *Node) error
-	AfterAdd(*Node, *Node) error
+	InsertBefore(*Node, *Node) error
+	InsertAfter(*Node, *Node) error
 	Header() *Node
 	Tailed() *Node
-	Reverse()
-	Buffer() <-chan Node
+	WriteBuffer(interface{}) chan interface{}
+	Buffer() <-chan interface{}
+	Remove(*Node) interface{}
+	Listen(Call)
 }
 
 // Node ...
 type Node struct {
+	queue      *queue
 	prev, next *Node
-	queue      *Queue
 	Data       *Data
 }
+
+// Call ...
+type Call func(*Node) error
 
 // NewNode ...
 func NewNode(data *Data) *Node {
@@ -48,7 +54,7 @@ func (e *Node) init() *Node {
 
 // Next returns the next list Node or nil.
 func (e *Node) Next() *Node {
-	if p := e.next; e.queue != nil && p != e.queue.head {
+	if p := e.next; e.queue != nil && p != &e.queue.head {
 		return p
 	}
 	return nil
@@ -56,216 +62,241 @@ func (e *Node) Next() *Node {
 
 // Prev returns the previous list Node or nil.
 func (e *Node) Prev() *Node {
-	if p := e.prev; e.queue != nil && p != e.queue.head {
+	if p := e.prev; e.queue != nil && p != &e.queue.head {
 		return p
 	}
 	return nil
 }
 
-// Queue ...
-type Queue struct {
-	opts       Options
+// queue ...
+type queue struct {
+	opts       options
 	len        int
-	head, tail *Node
+	head, tail Node
 }
 
 // NewQueue new queue
 func NewQueue(opts ...Option) Server {
-	queue := new(Queue).Init()
+	queue := new(queue).Init()
 	queue.opts = newOptions(opts...)
-	// 启动过期监听
-	go queue.expireListen()
 	return queue
 }
 
-// Init initializes or clears list l.
-func (h *Queue) Init() *Queue {
-	h.head = nil
-	h.tail = nil
+// Init 初始化队列
+func (h *queue) Init() *queue {
+	h.head.next = &h.head
+	h.tail.prev = &h.tail
 	h.len = 0
 	return h
 }
 
-// Len ...
-func (h *Queue) Len() int { return h.len }
+// Len 长度
+func (h *queue) Len() int { return h.len }
 
-// Name ...
-func (h *Queue) Name() string {
+// Name 名称
+func (h *queue) Name() string {
 	return h.opts.name
 }
 
-// Front returns the first element of list l or nil if the list is empty.
-func (h *Queue) Front() *Node {
+// lazyInit lazily initializes a zero List value.
+func (h *queue) lazyInit() {
+	if h.head.next == nil {
+		h.Init()
+	}
+}
+
+// insert inserts e after at, increments l.len, and returns e.
+func (h *queue) insert(e, at *Node) *Node {
+	e.prev = at
+	e.next = at.next
+	e.prev.next = e
+	e.next.prev = e
+	e.queue = h
+	h.len++
+	return e
+}
+
+// insertValue is a convenience wrapper for insert(&Element{Value: v}, at).
+func (h *queue) insertValue(v *Node, at *Node) *Node {
+	return h.insert(v, at)
+}
+
+// remove removes e from its list, decrements l.len, and returns e.
+func (h *queue) remove(node *Node) *Node {
+	node.prev.next = node.next
+	node.next.prev = node.prev
+	node.next = nil // avoid memory leaks
+	node.prev = nil // avoid memory leaks
+	node.queue = nil
+	h.len--
+	return node
+}
+
+// move moves e to next to at and returns e.
+func (h *queue) move(e, at *Node) *Node {
+	if e == at {
+		return e
+	}
+	e.prev.next = e.next
+	e.next.prev = e.prev
+
+	e.prev = at
+	e.next = at.next
+	e.prev.next = e
+	e.next.prev = e
+
+	return e
+}
+
+// Front 获取下一个
+func (h *queue) Front() *Node {
 	if h.len == 0 {
 		return nil
 	}
 	return h.head.next
 }
 
-// Header ...
-func (h *Queue) Header() *Node {
-	return h.head
+// Back returns the last element of list l or nil if the list is empty.
+func (h *queue) Back() *Node {
+	if h.len == 0 {
+		return nil
+	}
+	return h.head.prev
 }
 
-// Tailed ...
-func (h *Queue) Tailed() *Node {
-	return h.tail
+// Header 头部
+func (h *queue) Header() *Node {
+	return &h.head
 }
 
-// Reverse ...
-func (h *Queue) Reverse() {
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
+// Tailed 尾部
+func (h *queue) Tailed() *Node {
+	return &h.tail
 }
 
-// Buffer 获取缓存
-func (h *Queue) Buffer() <-chan Node {
+// WriteBuffer 写入数据到缓冲
+func (h *queue) WriteBuffer(data interface{}) chan interface{} {
+	h.opts.buffer <- data
 	return h.opts.buffer
 }
 
+// Buffer 获取缓冲
+func (h *queue) Buffer() <-chan interface{} {
+	return h.opts.buffer
+}
+
+// InsertBefore 之前插入
+func (h *queue) InsertBefore(before *Node, node *Node) error {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
+	h.len++
+	node.prev = before.prev
+	node.next = before
+	return nil
+}
+
+// InsertAfter 之后插入
+func (h *queue) InsertAfter(after *Node, node *Node) error {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
+	h.len++
+	node.prev = after
+	node.next = after.next
+	return nil
+}
+
+// Remove 删除
+func (h *queue) Remove(node *Node) interface{} {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
+	if node.queue == h {
+		// if e.list == l, l must have been initialized when e was inserted
+		// in l or l == nil (e is a zero Element) and l.remove will crash
+		h.remove(node)
+	}
+	return node.Data
+}
+
+// Listen 持续监听
+func (h *queue) Listen(call Call) {
+	go func() {
+		for {
+			for node := h.Front(); node != nil; node = node.Next() {
+				if err := call(node); err != nil {
+					break
+				}
+			}
+		}
+	}()
+}
+
 // Get ...
-func (h *Queue) Get(index uint) *Node {
+func (h *queue) Get(index int) *Data {
 	if h.len == 0 || h.len < int(index) {
 		return nil
 	}
-	if index == 0 {
-		return h.head
+	i := 0
+	for node := h.Front(); node != nil; node = node.Next() {
+		if i == index {
+			return node.Data
+		}
+		i++
 	}
-	node := h.head
-
-	return node
+	return nil
 }
 
 // Unshift 开头插入
-func (h *Queue) Unshift(node *Node) bool {
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
-	node.next = h.head
-	h.head = node
-	h.len++
-	return true
+func (h *queue) Unshift(v *Data) *Node {
+	// h.opts.mutex.Lock()
+	// defer h.opts.mutex.Unlock()
+	h.lazyInit()
+	return h.insertValue(NewNode(v), &h.head)
 }
 
 // Shift 移出开始第一个
-func (h *Queue) Shift() *Node {
-	if h.head == nil {
-		return nil
-	}
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
-	head := h.head
-	h.head = head.next
-	h.len--
-	return head
-}
-
-// Push 压入末尾
-func (h *Queue) Push(node *Node) bool {
-	if node == nil {
-		return false
-	}
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
-
-	if h.len == 0 {
-		h.head = node
-		h.tail = node
-		node.next = nil
-		node.prev = nil
-	} else {
-		node.prev = h.tail
-		node.next = nil
-		h.tail.next = node
-		h.tail = node
-	}
-	h.len++
-	return true
-}
-
-// Pop 弹出结尾最后一个
-func (h *Queue) Pop() *Node {
+func (h *queue) Shift() *Node {
 	if h.len <= 0 {
 		return nil
 	}
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
-	tail := h.tail
-	h.tail = tail.prev
-	h.tail.next = nil
-
-	return tail
+	return h.remove(&h.head)
 }
 
-// BeforeAdd 之前插入
-func (h *Queue) BeforeAdd(before *Node, value *Node) error {
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
-	h.len++
-	value.prev = before.prev
-	value.next = before
-	return nil
+// Push 压入末尾
+func (h *queue) Push(v *Data) *Node {
+	h.lazyInit()
+	return h.insertValue(NewNode(v), &h.head)
 }
 
-// AfterAdd 之后插入
-func (h *Queue) AfterAdd(after *Node, value *Node) error {
+// Pop 弹出结尾最后一个
+func (h *queue) Pop() *Node {
+	if h.len <= 0 {
+		return nil
+	}
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
-	h.len++
-	value.prev = after
-	value.next = after.next
-	return nil
+
+	return h.remove(h.Back())
+}
+
+// PushFrontList inserts a copy of another list at the front of list l.
+// The lists l and other may be the same. They must not be nil.
+func (h *queue) PushFrontList(other *queue) {
+	h.lazyInit()
+	for i, e := other.Len(), other.Back(); i > 0; i, e = i-1, e.Prev() {
+		h.insertValue(e, &h.head)
+	}
 }
 
 // Unique 去重
-func (h *Queue) Unique() error {
+func (h *queue) Unique() error {
 	return nil
 }
 
 // Replace 替换
-func (h *Queue) Replace(old *Node, new *Node) error {
+func (h *queue) Replace(old *Node, new *Node) error {
 	return nil
-}
-
-// Remove 替换
-func (h *Queue) Remove(node *Node) error {
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
-	if h.len <= 0 {
-		return nil
-	}
-
-	if node.prev == nil {
-		h.head = node.next
-		node.next.prev = nil
-		return nil
-	}
-
-	if node.next == nil {
-		node.prev.next = nil
-		h.tail = node.prev
-		return nil
-	}
-
-	h.len--
-	node.prev.next = node.next
-	node.next.prev = node.prev
-	return nil
-}
-
-// expireListen ...
-func (h *Queue) expireListen() {
-	go func() {
-		for {
-			node := h.head
-			for node != nil {
-				if node.Data.ExpireAt != nil && time.Now().After(*node.Data.ExpireAt) {
-					h.opts.buffer <- *node
-					h.Remove(node)
-				}
-				node = node.next
-			}
-		}
-	}()
 }
 
 // Data ...
@@ -298,7 +329,7 @@ func NewExpireData(content interface{}, expire *time.Time) *Data {
 }
 
 // AddData 插入数据到队列
-func (h *Queue) AddData(content interface{}) {
+func (h *queue) AddData(content interface{}) {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
 }
