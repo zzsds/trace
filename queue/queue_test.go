@@ -13,9 +13,9 @@ var que Server
 type Unit struct {
 	Name    string
 	Price   float64
-	Number  uint
-	UID     uint
-	TradeID uint
+	Number  int
+	UID     int
+	TradeID int
 }
 
 func TestMain(t *testing.M) {
@@ -54,7 +54,7 @@ func TestPush(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	node := NewData(&Unit{
 		Name:    "qwe",
-		Number:  int(rand.Intn(1000)),
+		Number:  rand.Intn(1000),
 		Price:   1.0,
 		UID:     0,
 		TradeID: 0,

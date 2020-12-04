@@ -13,13 +13,14 @@ type Server interface {
 	Len() int
 	Name() string
 	Front() *Node
+	Back() *Node
 	Get(index int) *Data
 	Push(*Data) *Node
 	Unshift(*Data) *Node
 	Shift() *Node
 	Pop() *Node
-	InsertBefore(*Node, *Node) *Node
-	InsertAfter(*Node, *Node) *Node
+	InsertBefore(*Data, *Node) *Node
+	InsertAfter(*Data, *Node) *Node
 	Header() *Node
 	Tailed() *Node
 	WriteBuffer(interface{}) chan interface{}
@@ -92,7 +93,9 @@ func NewQueue(opts ...Option) Server {
 // Init 初始化队列
 func (h *queue) Init() *queue {
 	h.head.next = &h.head
+	h.head.prev = &h.head
 	h.tail.prev = &h.tail
+	h.tail.next = &h.tail
 	h.len = 0
 	return h
 }
@@ -124,8 +127,8 @@ func (h *queue) insert(e, at *Node) *Node {
 }
 
 // insertValue is a convenience wrapper for insert(&Element{Value: v}, at).
-func (h *queue) insertValue(v *Node, at *Node) *Node {
-	return h.insert(v, at)
+func (h *queue) insertValue(v *Data, at *Node) *Node {
+	return h.insert(NewNode(v), at)
 }
 
 // remove removes e from its list, decrements l.len, and returns e.
@@ -182,8 +185,8 @@ func (h *queue) Tailed() *Node {
 }
 
 // WriteBuffer 写入数据到缓冲
-func (h *queue) WriteBuffer(data interface{}) chan interface{} {
-	h.opts.buffer <- data
+func (h *queue) WriteBuffer(v interface{}) chan interface{} {
+	h.opts.buffer <- v
 	return h.opts.buffer
 }
 
@@ -193,7 +196,7 @@ func (h *queue) Buffer() <-chan interface{} {
 }
 
 // InsertBefore 之前插入
-func (h *queue) InsertBefore(v *Node, node *Node) *Node {
+func (h *queue) InsertBefore(v *Data, node *Node) *Node {
 	if node.queue != h {
 		return nil
 	}
@@ -202,7 +205,7 @@ func (h *queue) InsertBefore(v *Node, node *Node) *Node {
 }
 
 // InsertAfter 之后插入
-func (h *queue) InsertAfter(v *Node, node *Node) *Node {
+func (h *queue) InsertAfter(v *Data, node *Node) *Node {
 	if node.queue != h {
 		return nil
 	}
@@ -271,13 +274,13 @@ func (h *queue) Get(index int) *Data {
 // Unshift 开头插入
 func (h *queue) Unshift(v *Data) *Node {
 	h.lazyInit()
-	return h.insertValue(NewNode(v), &h.head)
+	return h.insertValue(v, &h.head)
 }
 
 // Push 压入末尾
 func (h *queue) Push(v *Data) *Node {
 	h.lazyInit()
-	return h.insertValue(NewNode(v), h.head.prev)
+	return h.insertValue(v, h.head.prev)
 }
 
 // Shift 移出开始第一个
@@ -306,7 +309,7 @@ func (h *queue) Pop() *Node {
 func (h *queue) PushFrontList(other *queue) {
 	h.lazyInit()
 	for i, e := other.Len(), other.Back(); i > 0; i, e = i-1, e.Prev() {
-		h.insertValue(e, &h.head)
+		h.insertValue(e.Data, &h.head)
 	}
 }
 

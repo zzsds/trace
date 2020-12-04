@@ -84,36 +84,66 @@ func (h *Bid) Buy() queue.Server {
 
 // Sell ...
 func (h *Bid) Sell() queue.Server {
-	return h.buy
+	return h.sell
 }
 
 // Add ...
 func (h *Bid) Add(q queue.Server, u *Unit) error {
 	data := queue.NewData(u)
-	fmt.Println(u.Price, u.TradeID)
 	if q.Len() <= 0 {
 		q.Unshift(data)
 		goto END
 	}
+	//如果是买家队列，按照价格高优先，时间优先
 	if h.buy == q {
 		for n := q.Front(); n != nil; n = n.Next() {
 			content := n.Data.Content.(*Unit)
-			fmt.Println(content.Price, u.Price, u.TradeID)
 			if content.UID == u.UID && content.Price == u.Price {
 				content.Number += u.Number
 				n.Data.Content = content
-				continue
-			}
-			if content.Price < u.Price {
-				q.InsertBefore(queue.NewNode(data), n)
-				// q.Unshift(queue.NewData(u))
 				break
 			}
-		}
 
-		// fmt.Printf("%p ==== %p  %v \n\t", h.buy, q, u)
+			//价格高者优先
+			if content.Price > u.Price {
+				q.InsertAfter(data, n)
+				break
+			}
+
+			//时间优先
+			if content.Price == u.Price {
+				if n.Data.CreateAt.After(data.CreateAt) {
+					q.InsertAfter(data, n)
+					break
+				}
+			}
+		}
 	}
 
+	if h.sell == q {
+		for n := q.Front(); n != nil; n = n.Next() {
+			content := n.Data.Content.(*Unit)
+			if content.UID == u.UID && content.Price == u.Price {
+				content.Number += u.Number
+				n.Data.Content = content
+				break
+			}
+
+			//价格高者优先
+			if content.Price < u.Price {
+				q.InsertBefore(data, n)
+				break
+			}
+
+			//时间优先
+			if content.Price == u.Price {
+				if n.Data.CreateAt.After(data.CreateAt) {
+					q.InsertBefore(data, n)
+					break
+				}
+			}
+		}
+	}
 END:
 	h.opts.buffer <- &BufferMessage{
 		q, u,
