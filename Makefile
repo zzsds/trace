@@ -1,7 +1,7 @@
 PWD:=$(shell pwd)
-PROTO=match
+NAME=match
 
 .PHONY: proto
 proto:
-	@echo execute ${PROTO} proto file generate
-	protoc --proto_path=. --go_out=. proto/${PROTO}/${PROTO}.proto
+	@echo execute ${NAME} proto file generate
+	protoc --proto_path=. --go_out=. proto/${NAME}/${NAME}.proto

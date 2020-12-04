@@ -1,4 +1,4 @@
-package queue
+package bid
 
 import (
 	"sync"
@@ -19,7 +19,7 @@ type Option func(*options)
 func newOptions(opts ...Option) options {
 	opt := options{
 		mutex:  &sync.RWMutex{},
-		buffer: make(chan interface{}, 10),
+		buffer: make(chan interface{}, 100),
 		signal: true,
 	}
 	for _, o := range opts {

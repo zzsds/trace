@@ -1,6 +1,8 @@
 package queue
 
 import (
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,14 +18,16 @@ type Server interface {
 	Unshift(*Data) *Node
 	Shift() *Node
 	Pop() *Node
-	InsertBefore(*Node, *Node) error
-	InsertAfter(*Node, *Node) error
+	InsertBefore(*Node, *Node) *Node
+	InsertAfter(*Node, *Node) *Node
 	Header() *Node
 	Tailed() *Node
 	WriteBuffer(interface{}) chan interface{}
 	Buffer() <-chan interface{}
 	Remove(*Node) interface{}
-	Listen(Call)
+	Listen(Call) error
+	List() []Data
+	Loop(Call) error
 }
 
 // Node ...
@@ -67,6 +71,9 @@ func (e *Node) Prev() *Node {
 	}
 	return nil
 }
+
+// Queue ...
+type Queue queue
 
 // queue ...
 type queue struct {
@@ -186,23 +193,21 @@ func (h *queue) Buffer() <-chan interface{} {
 }
 
 // InsertBefore 之前插入
-func (h *queue) InsertBefore(before *Node, node *Node) error {
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
-	h.len++
-	node.prev = before.prev
-	node.next = before
-	return nil
+func (h *queue) InsertBefore(v *Node, node *Node) *Node {
+	if node.queue != h {
+		return nil
+	}
+	// see comment in List.Remove about initialization of l
+	return h.insertValue(v, node.prev)
 }
 
 // InsertAfter 之后插入
-func (h *queue) InsertAfter(after *Node, node *Node) error {
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
-	h.len++
-	node.prev = after
-	node.next = after.next
-	return nil
+func (h *queue) InsertAfter(v *Node, node *Node) *Node {
+	if node.queue != h {
+		return nil
+	}
+	// see comment in List.Remove about initialization of l
+	return h.insertValue(v, node)
 }
 
 // Remove 删除
@@ -214,11 +219,20 @@ func (h *queue) Remove(node *Node) interface{} {
 		// in l or l == nil (e is a zero Element) and l.remove will crash
 		h.remove(node)
 	}
-	return node.Data
+	return node.Data.Content
+}
+
+func (h *queue) Loop(call Call) error {
+	for node := h.Front(); node != nil; node = node.Next() {
+		if err := call(node); err != nil {
+			break
+		}
+	}
+	return nil
 }
 
 // Listen 持续监听
-func (h *queue) Listen(call Call) {
+func (h *queue) Listen(call Call) error {
 	go func() {
 		for {
 			for node := h.Front(); node != nil; node = node.Next() {
@@ -228,6 +242,15 @@ func (h *queue) Listen(call Call) {
 			}
 		}
 	}()
+
+	ch := make(chan os.Signal, 1)
+	if h.opts.signal {
+		signal.Notify(ch, os.Kill)
+	}
+
+	// wait on kill signal
+	<-ch
+	return nil
 }
 
 // Get ...
@@ -247,10 +270,14 @@ func (h *queue) Get(index int) *Data {
 
 // Unshift 开头插入
 func (h *queue) Unshift(v *Data) *Node {
-	// h.opts.mutex.Lock()
-	// defer h.opts.mutex.Unlock()
 	h.lazyInit()
 	return h.insertValue(NewNode(v), &h.head)
+}
+
+// Push 压入末尾
+func (h *queue) Push(v *Data) *Node {
+	h.lazyInit()
+	return h.insertValue(NewNode(v), h.head.prev)
 }
 
 // Shift 移出开始第一个
@@ -261,12 +288,6 @@ func (h *queue) Shift() *Node {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
 	return h.remove(&h.head)
-}
-
-// Push 压入末尾
-func (h *queue) Push(v *Data) *Node {
-	h.lazyInit()
-	return h.insertValue(NewNode(v), &h.head)
 }
 
 // Pop 弹出结尾最后一个
@@ -299,6 +320,14 @@ func (h *queue) Replace(old *Node, new *Node) error {
 	return nil
 }
 
+func (h *queue) List() []Data {
+	list := make([]Data, 0, h.len)
+	for node := h.Front(); node != nil; node = node.Next() {
+		list = append(list, *node.Data)
+	}
+	return list
+}
+
 // Data ...
 type Data struct {
 	UUID     string
@@ -318,13 +347,13 @@ func NewData(content interface{}) *Data {
 }
 
 // NewExpireData ...
-func NewExpireData(content interface{}, expire *time.Time) *Data {
+func NewExpireData(content interface{}, expire time.Time) *Data {
 	uuid, _ := uuid.NewUUID()
 	return &Data{
 		UUID:     uuid.String(),
 		CreateAt: time.Now(),
 		Content:  content,
-		ExpireAt: expire,
+		ExpireAt: &expire,
 	}
 }
 

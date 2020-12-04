@@ -3,8 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
+	"time"
 
 	"github.com/zzsds/trade"
+	"github.com/zzsds/trade/bid"
 	"github.com/zzsds/trade/queue"
 )
 
@@ -15,11 +18,77 @@ func main() {
 	})
 
 	log.Println(t.Name())
-	go t.Run()
 
-	q := queue.NewQueue(queue.Name("Buy"))
-	log.Println(q.Name(), q.Length())
+	t.RegisterBid(1, bid.NewBid(bid.Name("product")))
+	b, _ := t.LoadBid(1)
 
-	select {}
-	fmt.Println(123)
+	data := queue.NewData(&bid.Unit{
+		Name:    "xlj",
+		Number:  int(rand.Intn(1000)),
+		Price:   1.0,
+		UID:     0,
+		TradeID: 0,
+	})
+	b.Buy().Push(data)
+
+	data = queue.NewData(&bid.Unit{
+		Name:    "qwe",
+		Number:  int(rand.Intn(1000)),
+		Price:   1.0,
+		UID:     0,
+		TradeID: 0,
+	})
+	b.Sell().Push(data)
+	// fmt.Println(b)
+	t.Run()
+}
+
+func queueTest() {
+	que := queue.NewQueue(queue.Name("Buy"))
+	log.Println(que.Name(), que.Len())
+
+	que.Listen(func(n *queue.Node) error {
+		if n.Data.ExpireAt == nil {
+			que.WriteBuffer(n.Data.Content)
+			que.Remove(n)
+		} else if n.Data.ExpireAt.Before(time.Now()) {
+			n.Data.ExpireAt = nil
+		}
+		return nil
+	})
+
+	go func() {
+		for {
+			select {
+			case buff := <-que.Buffer():
+				log.Println(buff, "出")
+			}
+		}
+	}()
+
+	rand.Seed(time.Now().Unix())
+	data := queue.NewExpireData(&bid.Unit{
+		Name:    "qwe",
+		Number:  int(rand.Intn(1000)),
+		Price:   1.0,
+		UID:     0,
+		TradeID: 0,
+	}, time.Now().Add(3*time.Second))
+	que.Push(data)
+
+	time.Sleep(5 * time.Second)
+	data = queue.NewData(&bid.Unit{
+		Name:    "xlj",
+		Number:  int(rand.Intn(1000)),
+		Price:   1.0,
+		UID:     0,
+		TradeID: 0,
+	})
+	que.Unshift(data)
+
+	time.Sleep(2 * time.Second)
+	fmt.Println("End")
+	for k, v := range que.List() {
+		log.Println(k, v.Content, "list")
+	}
 }

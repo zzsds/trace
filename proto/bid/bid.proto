@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package bid;
+option go_package = "bid;bid";
+
+enum Type {
+	Buy = 0;
+	Sell = 1;
+}

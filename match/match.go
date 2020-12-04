@@ -1,47 +1,80 @@
 package match
 
-// DefaultServer ...
-var DefaultServer Server
+import (
+	"log"
+	"os"
+	"os/signal"
+
+	"github.com/zzsds/trade/bid"
+)
 
 // Server ...
 type Server interface {
+	Init() Server
+	Name() string
+	Bid(bid.Server) Server
 	Run() error
+	Suspend() error
 }
 
-// Unit ...
-type Unit struct {
-	UID    uint
-	Number uint
-	Amount float64
+// Match Match
+type Match struct {
+	opts options
+	bid  bid.Server
 }
 
-// QueueNode 队列
-type QueueNode struct {
-	Number uint
-	Value  *Unit
-	Prev   *Queue
-	Next   *Queue
+// NewMatch new match
+func NewMatch(opts ...Option) Server {
+	m := new(Match)
+	m.Init()
+	m.opts = newOptions(opts...)
+	return m
 }
 
-// NewMatch ...
-func NewMatch() Server {
-	var (
-		buy = NewBuy()
-	)
+// Bid ...
+func (h *Match) Bid(p bid.Server) Server {
+	h.bid = p
+	return h
 }
 
-// Run ...
-func (h *Queue) Run() error {
-
-	return h.Stop()
+// Init 初始化队列
+func (h *Match) Init() Server {
+	return h
 }
 
-// Start ...
-func (h *Queue) Start() error {
+// Name ..
+func (h *Match) Name() string {
+	return h.opts.name
+}
+
+// Suspend ...
+func (h *Match) Suspend() error {
 	return nil
 }
 
 // Stop ...
-func (h *Queue) Stop() error {
+func (h *Match) Stop() error {
+	h.bid.Init()
 	return nil
+}
+
+// Run ...
+func (h *Match) Run() error {
+	go func() {
+		for {
+			select {
+			case buy := <-h.bid.Buy().Buffer():
+				log.Println(buy)
+			}
+		}
+	}()
+
+	ch := make(chan os.Signal, 1)
+	if h.opts.signal {
+		signal.Notify(ch, os.Kill)
+	}
+
+	// wait on kill signal
+	<-ch
+	return h.Stop()
 }

@@ -1,4 +1,4 @@
-package queue
+package match
 
 import (
 	"sync"
@@ -8,7 +8,6 @@ import (
 type options struct {
 	mutex  *sync.RWMutex
 	name   string
-	size   int
 	buffer chan interface{}
 	signal bool
 }
@@ -19,7 +18,7 @@ type Option func(*options)
 func newOptions(opts ...Option) options {
 	opt := options{
 		mutex:  &sync.RWMutex{},
-		buffer: make(chan interface{}, 10),
+		buffer: make(chan interface{}),
 		signal: true,
 	}
 	for _, o := range opts {
