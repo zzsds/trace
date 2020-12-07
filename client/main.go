@@ -24,7 +24,7 @@ func main() {
 
 	data := queue.NewData(&bid.Unit{
 		Name:    "xlj",
-		Number:  int(rand.Intn(1000)),
+		Amount:  int(rand.Intn(1000)),
 		Price:   1.0,
 		UID:     0,
 		TradeID: 0,
@@ -33,7 +33,7 @@ func main() {
 
 	data = queue.NewData(&bid.Unit{
 		Name:    "qwe",
-		Number:  int(rand.Intn(1000)),
+		Amount:  int(rand.Intn(1000)),
 		Price:   1.0,
 		UID:     0,
 		TradeID: 0,
@@ -69,7 +69,7 @@ func queueTest() {
 	rand.Seed(time.Now().Unix())
 	data := queue.NewExpireData(&bid.Unit{
 		Name:    "qwe",
-		Number:  int(rand.Intn(1000)),
+		Amount:  int(rand.Intn(1000)),
 		Price:   1.0,
 		UID:     0,
 		TradeID: 0,
@@ -79,7 +79,7 @@ func queueTest() {
 	time.Sleep(5 * time.Second)
 	data = queue.NewData(&bid.Unit{
 		Name:    "xlj",
-		Number:  int(rand.Intn(1000)),
+		Amount:  int(rand.Intn(1000)),
 		Price:   1.0,
 		UID:     0,
 		TradeID: 0,

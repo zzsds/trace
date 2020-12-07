@@ -6,6 +6,7 @@ import (
 	"os/signal"
 
 	"github.com/zzsds/trade/bid"
+	"github.com/zzsds/trade/queue"
 )
 
 // Server ...
@@ -58,16 +59,61 @@ func (h *Match) Stop() error {
 	return nil
 }
 
-// Run ...
-func (h *Match) Run() error {
+// Handle ...
+func (h *Match) handle() error {
 	go func() {
 		for {
 			select {
-			case buy := <-h.bid.Buy().Buffer():
-				log.Println(buy)
+			case buf := <-h.bid.Buffer():
+				msg := buf.(*bid.BufferMessage)
+				q := msg.Queue
+				if q == h.bid.Buy() {
+					sell := h.bid.Sell()
+					for n := sell.Front(); n != nil; n = n.Next() {
+						content := n.Data.Content.(*bid.Unit)
+						var unit *bid.Unit
+						msg.Data.Formate(func(d *queue.Data) error {
+							unit = d.Content.(*bid.Unit)
+							return nil
+						})
+						if unit.Price >= content.Price {
+							if unit.Amount == content.Amount {
+								sell.Remove(n)
+								// q.Remove()
+							}
+							log.Println(q.Name(), unit.Price)
+							break
+						}
+					}
+				} else if q == h.bid.Sell() {
+					buy := h.bid.Buy()
+					for n := h.bid.Buy().Front(); n != nil; n = n.Next() {
+						content := n.Data.Content.(*bid.Unit)
+						var unit *bid.Unit
+						msg.Data.Formate(func(d *queue.Data) error {
+							unit = d.Content.(*bid.Unit)
+							return nil
+						})
+						if unit.Price <= content.Price {
+							if unit.Amount == content.Amount {
+								buy.Remove(n)
+							}
+							log.Println(msg.Queue.Name(), unit.Price)
+							break
+						}
+					}
+				}
 			}
 		}
 	}()
+	return nil
+}
+
+// Run ...
+func (h *Match) Run() error {
+
+	// 处理撮合
+	h.handle()
 
 	ch := make(chan os.Signal, 1)
 	if h.opts.signal {

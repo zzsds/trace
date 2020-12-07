@@ -13,7 +13,7 @@ var que Server
 type Unit struct {
 	Name    string
 	Price   float64
-	Number  int
+	Amount  int
 	UID     int
 	TradeID int
 }
@@ -54,7 +54,7 @@ func TestPush(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	node := NewData(&Unit{
 		Name:    "qwe",
-		Number:  rand.Intn(1000),
+		Amount:  rand.Intn(1000),
 		Price:   1.0,
 		UID:     0,
 		TradeID: 0,
@@ -68,7 +68,7 @@ func TestUnshift(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	data := NewData(&Unit{
 		Name:    "asd",
-		Number:  int(rand.Intn(1000)),
+		Amount:  int(rand.Intn(1000)),
 		Price:   2.0,
 		UID:     1,
 		TradeID: 1,
@@ -87,7 +87,7 @@ func TestExpireUnshift(t *testing.T) {
 	expire := time.Now().Add(3 * time.Second)
 	node := NewExpireData(&Unit{
 		Name:    "xlj",
-		Number:  int(rand.Intn(1000)),
+		Amount:  int(rand.Intn(1000)),
 		Price:   2.0,
 		UID:     1,
 		TradeID: 1,
@@ -141,7 +141,7 @@ func BenchmarkQueueUnshift(t *testing.B) {
 		price, _ := strconv.ParseFloat(strconv.Itoa(i), 64)
 		que.Unshift(NewData(&Unit{
 			Name:    "xlj",
-			Number:  int(rand.Intn(10000000000)),
+			Amount:  int(rand.Intn(10000000000)),
 			Price:   price,
 			UID:     int(i),
 			TradeID: int(i),
@@ -155,7 +155,7 @@ func BenchmarkQueuePush(t *testing.B) {
 		price, _ := strconv.ParseFloat(strconv.Itoa(i), 64)
 		que.Push(NewData(&Unit{
 			Name:    "xlj",
-			Number:  int(rand.Intn(10000000000)),
+			Amount:  int(rand.Intn(10000000000)),
 			Price:   price,
 			UID:     int(i),
 			TradeID: int(i),

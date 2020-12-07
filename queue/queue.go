@@ -339,6 +339,14 @@ type Data struct {
 	Content  interface{}
 }
 
+// DataFunc ...
+type DataFunc func(*Data) error
+
+// Formate ...
+func (h *Data) Formate(c DataFunc) error {
+	return c(h)
+}
+
 // NewData ...
 func NewData(content interface{}) *Data {
 	uuid, _ := uuid.NewUUID()

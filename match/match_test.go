@@ -2,10 +2,11 @@ package match
 
 import (
 	"math/rand"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/zzsds/trade/bid"
-	"github.com/zzsds/trade/queue"
 )
 
 var matchup Server
@@ -17,23 +18,25 @@ func TestMain(t *testing.M) {
 
 func TestRun(t *testing.T) {
 	b := bid.NewBid(bid.Name("product"))
-	buy := b.Buy()
 
-	for i := 0; i < 100; i++ {
-		buy.Push(queue.NewData(&bid.Unit{
+	for i := 0; i < 500; i++ {
+		traceType := b.Buy()
+		if i%2 != 0 {
+			traceType = b.Sell()
+		}
+		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
+		b.Add(traceType, &bid.Unit{
 			Name:    "xlj",
-			Number:  int(rand.Intn(1000)),
-			Price:   1.0,
+			Amount:  int(rand.Intn(1000)),
+			Price:   price,
 			UID:     int(i),
 			TradeID: int(i),
-		}))
+		})
 	}
 
-	buy.Loop(func(n *queue.Node) error {
-		t.Log(n.Data.Content)
-		return nil
-	})
-
-	// matchup.Bid(bid).Run()
+	go matchup.Bid(b).Run()
+	select {
+	case <-time.After(3 * time.Second):
+	}
 	t.Log("End")
 }

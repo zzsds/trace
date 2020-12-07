@@ -12,21 +12,21 @@ type Server interface {
 	Buy() queue.Server
 	Sell() queue.Server
 	Cancel(queue.Server, int) error
-	Add(queue.Server, *Unit) error
+	Add(queue.Server, *Unit) (queue.Data, error)
 	Buffer() <-chan interface{}
 }
 
 // BufferMessage 缓冲消息
 type BufferMessage struct {
 	Queue queue.Server
-	*Unit
+	*queue.Node
 }
 
 // Unit ...
 type Unit struct {
 	Name    string
 	Price   float64
-	Number  int
+	Amount  int
 	UID     int
 	TradeID int
 }
@@ -62,6 +62,7 @@ func NewBid(opts ...Option) Server {
 	bid := new(Bid)
 	bid.Init()
 	bid.opts = newOptions(opts...)
+	bids[bid.opts.id] = bid
 	return bid
 }
 
@@ -88,67 +89,68 @@ func (h *Bid) Sell() queue.Server {
 }
 
 // Add ...
-func (h *Bid) Add(q queue.Server, u *Unit) error {
+func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
+	buffer := BufferMessage{Queue: q}
 	data := queue.NewData(u)
-	if q.Len() <= 0 {
-		q.Unshift(data)
-		goto END
-	}
 	//如果是买家队列，按照价格高优先，时间优先
 	if h.buy == q {
-		for n := q.Front(); n != nil; n = n.Next() {
+		for n := q.Front(); ; n = n.Next() {
+			if n == nil {
+				buffer.Node = q.Push(data)
+				break
+			}
 			content := n.Data.Content.(*Unit)
 			if content.UID == u.UID && content.Price == u.Price {
-				content.Number += u.Number
+				content.Amount += u.Amount
 				n.Data.Content = content
+				buffer.Node = n
 				break
 			}
 
 			//价格高者优先
-			if content.Price > u.Price {
-				q.InsertAfter(data, n)
+			if u.Price > content.Price {
+				buffer.Node = q.InsertBefore(data, n)
 				break
 			}
 
 			//时间优先
-			if content.Price == u.Price {
-				if n.Data.CreateAt.After(data.CreateAt) {
-					q.InsertAfter(data, n)
-					break
-				}
+			if u.Price == content.Price && n.Data.CreateAt.After(data.CreateAt) {
+				buffer.Node = q.InsertBefore(data, n)
+				break
 			}
 		}
 	}
 
 	if h.sell == q {
-		for n := q.Front(); n != nil; n = n.Next() {
+		for n := q.Front(); ; n = n.Next() {
+			if n == nil {
+				buffer.Node = q.Push(data)
+				break
+			}
 			content := n.Data.Content.(*Unit)
 			if content.UID == u.UID && content.Price == u.Price {
-				content.Number += u.Number
+				content.Amount += u.Amount
 				n.Data.Content = content
+				buffer.Node = n
 				break
 			}
 
 			//价格高者优先
-			if content.Price < u.Price {
-				q.InsertBefore(data, n)
+			if content.Price > u.Price {
+				buffer.Node = q.InsertBefore(data, n)
 				break
 			}
 
 			//时间优先
-			if content.Price == u.Price {
-				if n.Data.CreateAt.After(data.CreateAt) {
-					q.InsertBefore(data, n)
-					break
-				}
+			if content.Price == u.Price && n.Data.CreateAt.After(data.CreateAt) {
+				buffer.Node = q.InsertBefore(data, n)
+				break
 			}
 		}
 	}
-END:
-	h.opts.buffer <- &BufferMessage{
-		q, u,
-	}
-	return nil
+
+	h.opts.buffer <- &buffer
+	return *data, nil
 }
 
 // Cancel ...

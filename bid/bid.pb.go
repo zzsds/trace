@@ -62,7 +62,7 @@ func (Type) Type() protoreflect.EnumType {
 	return &file_proto_bid_bid_proto_enumTypes[0]
 }
 
-func (x Type) Number() protoreflect.EnumNumber {
+func (x Type) Amount() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
