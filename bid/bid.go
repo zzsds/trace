@@ -14,6 +14,8 @@ type Server interface {
 	Cancel(queue.Server, int) error
 	Add(queue.Server, *Unit) (queue.Data, error)
 	Buffer() <-chan interface{}
+	ID() int
+	Name() string
 }
 
 // BufferMessage 缓冲消息
@@ -64,6 +66,11 @@ func NewBid(opts ...Option) Server {
 	bid.opts = newOptions(opts...)
 	bids[bid.opts.id] = bid
 	return bid
+}
+
+// ID ...
+func (h *Bid) ID() int {
+	return h.opts.id
 }
 
 // Init 初始化交易对

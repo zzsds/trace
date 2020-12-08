@@ -6,7 +6,6 @@ import (
 	"os/signal"
 
 	"github.com/zzsds/trade/bid"
-	"github.com/zzsds/trade/queue"
 )
 
 // Server ...
@@ -16,6 +15,15 @@ type Server interface {
 	Bid(bid.Server) Server
 	Run() error
 	Suspend() error
+}
+
+// Result 撮合结果
+type Result struct {
+	Bid     bid.Server
+	Amount  int
+	Price   float64
+	Trigger bid.Unit
+	Trades  []bid.Unit
 }
 
 // Match Match
@@ -65,43 +73,50 @@ func (h *Match) handle() error {
 		for {
 			select {
 			case buf := <-h.bid.Buffer():
+				result := Result{Bid: h.bid}
 				msg := buf.(*bid.BufferMessage)
 				q := msg.Queue
 				if q == h.bid.Buy() {
 					sell := h.bid.Sell()
 					for n := sell.Front(); n != nil; n = n.Next() {
 						content := n.Data.Content.(*bid.Unit)
-						var unit *bid.Unit
-						msg.Data.Formate(func(d *queue.Data) error {
-							unit = d.Content.(*bid.Unit)
-							return nil
-						})
+						unit := msg.Data.Content.(*bid.Unit)
 						if unit.Price >= content.Price {
 							if unit.Amount == content.Amount {
 								sell.Remove(n)
-								// q.Remove()
+								q.Remove(msg.Node)
+								log.Println(q.Name(), unit.Price, "--------------")
+								result.Amount = unit.Amount
+								result.Price = unit.Price
+								result.Trigger = *unit
+								result.Trades = append(result.Trades, *content)
+								break
 							}
-							log.Println(q.Name(), unit.Price)
-							break
 						}
 					}
 				} else if q == h.bid.Sell() {
 					buy := h.bid.Buy()
 					for n := h.bid.Buy().Front(); n != nil; n = n.Next() {
 						content := n.Data.Content.(*bid.Unit)
-						var unit *bid.Unit
-						msg.Data.Formate(func(d *queue.Data) error {
-							unit = d.Content.(*bid.Unit)
-							return nil
-						})
+						unit := msg.Data.Content.(*bid.Unit)
 						if unit.Price <= content.Price {
 							if unit.Amount == content.Amount {
 								buy.Remove(n)
+								q.Remove(msg.Node)
+								result.Amount = unit.Amount
+								result.Price = unit.Price
+								result.Trigger = *unit
+								result.Trades = append(result.Trades, *content)
+								log.Println(msg.Queue.Name(), unit.Price)
+								break
 							}
-							log.Println(msg.Queue.Name(), unit.Price)
-							break
 						}
 					}
+				}
+
+				// 成交后进行缓冲推送
+				if result.Amount > 0 {
+					h.opts.buffer <- &result
 				}
 			}
 		}
