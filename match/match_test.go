@@ -37,9 +37,8 @@ func TestRun(t *testing.T) {
 	match := matchup.Bid(b)
 	go match.Run()
 	select {
-	case buf := <-match.Buffer():
-		result := buf.(*Result)
-		t.Log(result.Bid.Name(), result.Trigger.Type, result.Trigger.Unit, result.Trades)
+	case result := <-match.Buffer():
+		t.Log(result.Bid.Name(), result.Trigger.String(), result.Trigger.Unit, result.Trades)
 	case <-time.After(3 * time.Second):
 	}
 

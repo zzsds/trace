@@ -18,9 +18,8 @@ func TestBuffer(t *testing.T) {
 	go func() {
 		for {
 			select {
-			case buf := <-bid.Buffer():
-				message := buf.(*BufferMessage)
-				t.Log(message.Queue.Name(), message.Node.Data.Content)
+			case message := <-bid.Buffer():
+				t.Log(message.Queue.Name(), message.Node)
 			}
 		}
 	}()
@@ -52,12 +51,12 @@ func TestAdd(t *testing.T) {
 	}
 
 	for n := bid.Buy().Front(); n != nil; n = n.Next() {
-		t.Log(n.Data.Content)
+		t.Log(n.Data().Content)
 	}
 	t.Logf("buy length %d", bid.Buy().Len())
 
 	for n := bid.Sell().Front(); n != nil; n = n.Next() {
-		t.Log(n.Data.Content)
+		t.Log(n.Data().Content)
 	}
 	t.Logf("sell length %d", bid.Sell().Len())
 

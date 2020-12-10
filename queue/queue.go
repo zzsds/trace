@@ -1,8 +1,10 @@
 package queue
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
+	"reflect"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,15 +35,17 @@ type Server interface {
 
 // NodeServer ...
 type NodeServer interface {
-	Next() NodeServer
-	Prev() NodeServer
+	Next() *Node
+	Prev() *Node
+	Data() *Data
+	Content(interface{}) error
 }
 
 // Node ...
 type Node struct {
 	queue      *queue
 	prev, next *Node
-	Data       *Data
+	data       *Data
 }
 
 // Call ...
@@ -50,13 +54,13 @@ type Call func(*Node) error
 // NewNode ...
 func NewNode(data *Data) *Node {
 	node := new(Node).init()
-	node.Data = data
+	node.data = data
 	return node
 }
 
 // Next returns the next list Node or nil.
 func (e *Node) init() *Node {
-	e.Data = nil
+	e.data = nil
 	e.prev = nil
 	e.next = nil
 	e.queue = nil
@@ -79,14 +83,26 @@ func (e *Node) Prev() *Node {
 	return nil
 }
 
-// Value ...
-func (e *Node) Value() *Data {
-	return e.Data
+// Data ...
+func (e *Node) Data() *Data {
+	return e.data
 }
 
 // Content ...
-func (e *Node) Content() interface{} {
-	return e.Data.Content
+func (e *Node) Content(v interface{}) error {
+	if e.data.Content != nil {
+		v = e.data.Content
+	}
+	reflectValue := reflect.ValueOf(v)
+	for reflectValue.Kind() == reflect.Ptr {
+		reflectValue = reflectValue.Elem()
+	}
+
+	if !reflectValue.IsValid() {
+		return fmt.Errorf("invalid value")
+	}
+
+	return nil
 }
 
 // Queue ...
@@ -238,7 +254,7 @@ func (h *queue) Remove(node *Node) interface{} {
 		// in l or l == nil (e is a zero Element) and l.remove will crash
 		h.remove(node)
 	}
-	return node.Data.Content
+	return node.Data().Content
 }
 
 func (h *queue) Loop(call Call) error {
@@ -280,7 +296,7 @@ func (h *queue) Get(index int) *Data {
 	i := 0
 	for node := h.Front(); node != nil; node = node.Next() {
 		if i == index {
-			return node.Data
+			return node.data
 		}
 		i++
 	}
@@ -325,7 +341,7 @@ func (h *queue) Pop() *Node {
 func (h *queue) PushFrontList(other *queue) {
 	h.lazyInit()
 	for i, e := other.Len(), other.Back(); i > 0; i, e = i-1, e.Prev() {
-		h.insertValue(e.Data, &h.head)
+		h.insertValue(e.data, &h.head)
 	}
 }
 
@@ -342,7 +358,7 @@ func (h *queue) Replace(old *Node, new *Node) error {
 func (h *queue) List() []Data {
 	list := make([]Data, 0, h.len)
 	for node := h.Front(); node != nil; node = node.Next() {
-		list = append(list, *node.Data)
+		list = append(list, *node.data)
 	}
 	return list
 }

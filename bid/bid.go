@@ -13,15 +13,15 @@ type Server interface {
 	Sell() queue.Server
 	Cancel(queue.Server, int) error
 	Add(queue.Server, *Unit) (queue.Data, error)
-	Buffer() <-chan interface{}
+	Buffer() <-chan Message
 	ID() int
 	Name() string
 }
 
-// BufferMessage 缓冲消息
-type BufferMessage struct {
+// Message 缓冲消息
+type Message struct {
 	Queue queue.Server
-	*queue.Node
+	Node  queue.NodeServer
 }
 
 // UnitType ...
@@ -103,7 +103,7 @@ func (h *Bid) Sell() queue.Server {
 
 // Add ...
 func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
-	buffer := BufferMessage{Queue: q}
+	buffer := Message{Queue: q}
 	data := queue.NewData(u)
 	//如果是买家队列，按照价格高优先，时间优先
 	if h.buy == q {
@@ -112,10 +112,10 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 				buffer.Node = q.Push(data)
 				break
 			}
-			content := n.Data.Content.(*Unit)
+			content := n.Data().Content.(*Unit)
 			if content.UID == u.UID && content.Price == u.Price {
 				content.Amount += u.Amount
-				n.Data.Content = content
+				n.Data().Content = content
 				buffer.Node = n
 				break
 			}
@@ -127,7 +127,7 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 			}
 
 			//时间优先
-			if u.Price == content.Price && n.Data.CreateAt.After(data.CreateAt) {
+			if u.Price == content.Price && n.Data().CreateAt.After(data.CreateAt) {
 				buffer.Node = q.InsertBefore(data, n)
 				break
 			}
@@ -140,10 +140,10 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 				buffer.Node = q.Push(data)
 				break
 			}
-			content := n.Data.Content.(*Unit)
+			content := n.Data().Content.(*Unit)
 			if content.UID == u.UID && content.Price == u.Price {
 				content.Amount += u.Amount
-				n.Data.Content = content
+				n.Data().Content = content
 				buffer.Node = n
 				break
 			}
@@ -155,7 +155,7 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 			}
 
 			//时间优先
-			if content.Price == u.Price && n.Data.CreateAt.After(data.CreateAt) {
+			if content.Price == u.Price && n.Data().CreateAt.After(data.CreateAt) {
 				buffer.Node = q.InsertBefore(data, n)
 				break
 			}
@@ -169,7 +169,7 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 // Cancel ...
 func (h *Bid) Cancel(q queue.Server, ID int) error {
 	q.Loop(func(n *queue.Node) error {
-		content := n.Data.Content
+		content := n.Data().Content
 		if content != nil && content.(*Unit).ID == ID {
 			q.Remove(n)
 		}
@@ -179,6 +179,6 @@ func (h *Bid) Cancel(q queue.Server, ID int) error {
 }
 
 // Buffer 获取缓冲
-func (h *Bid) Buffer() <-chan interface{} {
+func (h *Bid) Buffer() <-chan Message {
 	return h.opts.buffer
 }

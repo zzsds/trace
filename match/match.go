@@ -17,7 +17,7 @@ type Server interface {
 	Bid(bid.Server) Server
 	Run() error
 	Suspend() error
-	Buffer() <-chan interface{}
+	Buffer() <-chan Result
 }
 
 // Result 撮合结果
@@ -65,7 +65,7 @@ func (h *Match) Suspend() error {
 }
 
 // Buffer ...
-func (h *Match) Buffer() <-chan interface{} {
+func (h *Match) Buffer() <-chan Result {
 	return h.opts.buffer
 }
 
@@ -76,10 +76,10 @@ func (h *Match) Stop() error {
 }
 
 // Handle ...
-func (h *Match) matchBuy(q queue.Server, n *queue.Node) error {
-	unit, ok := n.Content().(*bid.Unit)
+func (h *Match) matchBuy(q queue.Server, n queue.NodeServer) error {
+	unit, ok := n.Data().Content.(*bid.Unit)
 	if !ok {
-		return fmt.Errorf("buffer data type fail %v", n.Content())
+		return fmt.Errorf("buffer data type fail %v", n.Data().Content)
 	}
 
 	result := Result{Bid: h.bid, Trigger: bid.UnitType{Unit: *unit}}
@@ -88,7 +88,7 @@ func (h *Match) matchBuy(q queue.Server, n *queue.Node) error {
 		result.Trigger.Type = bid.Type_Buy
 		sell := h.bid.Sell()
 		for n := sell.Front(); n != nil; n = n.Next() {
-			content, ok := n.Data.Content.(*bid.Unit)
+			content, ok := n.Data().Content.(*bid.Unit)
 			if !ok {
 				break
 			}
@@ -122,7 +122,7 @@ func (h *Match) matchBuy(q queue.Server, n *queue.Node) error {
 		result.Trigger.Type = bid.Type_Buy
 		buy := h.bid.Buy()
 		for n := h.bid.Buy().Front(); n != nil; n = n.Next() {
-			content := n.Data.Content.(*bid.Unit)
+			content := n.Data().Content.(*bid.Unit)
 			if unit.Price <= content.Price {
 				if unit.Amount == content.Amount {
 					buy.Remove(n)
@@ -138,11 +138,11 @@ func (h *Match) matchBuy(q queue.Server, n *queue.Node) error {
 	}
 	// 扣减当前交易结果
 	if result.Amount < result.Trigger.Unit.Amount {
-		n.Value().Update(unit)
+		n.Data().Update(unit)
 	}
 	// 成交后进行缓冲推送
 	if result.Amount > 0 {
-		h.opts.buffer <- &result
+		h.opts.buffer <- result
 	}
 	return nil
 }
@@ -153,11 +153,7 @@ func (h *Match) Run() error {
 	go func() {
 		for {
 			select {
-			case buf := <-h.bid.Buffer():
-				message, ok := buf.(bid.BufferMessage)
-				if !ok {
-					break
-				}
+			case message := <-h.bid.Buffer():
 				switch q := message.Queue; q {
 				case h.bid.Buy():
 					h.matchBuy(q, message.Node)

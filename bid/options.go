@@ -9,7 +9,7 @@ type options struct {
 	mutex  *sync.RWMutex
 	id     int
 	name   string
-	buffer chan interface{}
+	buffer chan Message
 	signal bool
 }
 
@@ -19,7 +19,7 @@ type Option func(*options)
 func newOptions(opts ...Option) options {
 	opt := options{
 		mutex:  &sync.RWMutex{},
-		buffer: make(chan interface{}, 1000),
+		buffer: make(chan Message, 1000),
 		signal: true,
 	}
 	for _, o := range opts {

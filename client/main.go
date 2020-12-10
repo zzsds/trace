@@ -48,11 +48,11 @@ func queueTest() {
 	log.Println(que.Name(), que.Len())
 
 	que.Listen(func(n *queue.Node) error {
-		if n.Data.ExpireAt == nil {
-			que.WriteBuffer(n.Data.Content)
+		if n.Data().ExpireAt == nil {
+			que.WriteBuffer(n.Data().Content)
 			que.Remove(n)
-		} else if n.Data.ExpireAt.Before(time.Now()) {
-			n.Data.ExpireAt = nil
+		} else if n.Data().ExpireAt.Before(time.Now()) {
+			n.Data().ExpireAt = nil
 		}
 		return nil
 	})

@@ -1,14 +1,16 @@
 package match
 
 import (
+	"context"
 	"sync"
 )
 
 // options ...
 type options struct {
+	ctx    context.Context
 	mutex  *sync.RWMutex
 	name   string
-	buffer chan interface{}
+	buffer chan Result
 	signal bool
 }
 
@@ -17,8 +19,9 @@ type Option func(*options)
 
 func newOptions(opts ...Option) options {
 	opt := options{
+		ctx:    context.Background(),
 		mutex:  &sync.RWMutex{},
-		buffer: make(chan interface{}),
+		buffer: make(chan Result),
 		signal: true,
 	}
 	for _, o := range opts {

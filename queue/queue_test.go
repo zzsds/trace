@@ -40,11 +40,11 @@ func TestMain(t *testing.M) {
 
 func TestListen(t *testing.T) {
 	que.Listen(func(n *Node) error {
-		if n.Data.ExpireAt == nil {
-			que.WriteBuffer(n.Data.Content)
+		if n.Data().ExpireAt == nil {
+			que.WriteBuffer(n.Data().Content)
 			que.Remove(n)
-		} else if n.Data.ExpireAt.Before(time.Now()) {
-			n.Data.ExpireAt = nil
+		} else if n.Data().ExpireAt.Before(time.Now()) {
+			n.Data().ExpireAt = nil
 		}
 		return nil
 	})
@@ -125,7 +125,7 @@ func TestQueueHandle(t *testing.T) {
 
 func TestQueuePrint(t *testing.T) {
 	for node := que.Front(); node != nil; node = node.Next() {
-		data := node.Data
+		data := node.data
 		t.Log(data, data.Content)
 	}
 }
