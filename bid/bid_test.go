@@ -11,6 +11,13 @@ var bid Server
 
 func TestMain(t *testing.M) {
 	bid = NewBid(Name("Product"))
+	go func() {
+		for {
+			select {
+			case <-bid.Buffer():
+			}
+		}
+	}()
 	t.Run()
 }
 

@@ -18,8 +18,10 @@ func TestMain(t *testing.M) {
 
 func TestRun(t *testing.T) {
 	b := bid.NewBid(bid.Name("product"))
+	match := matchup.Bid(b)
+	go match.Run()
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 2000; i++ {
 		traceType := b.Buy()
 		if i%2 != 0 {
 			traceType = b.Sell()
@@ -34,13 +36,13 @@ func TestRun(t *testing.T) {
 		})
 	}
 
-	match := matchup.Bid(b)
-	go match.Run()
-	select {
-	case result := <-match.Buffer():
-		t.Log(result.Bid.Name(), result.Trigger.String(), result.Trigger.Unit, result.Trades)
-	case <-time.After(3 * time.Second):
-	}
+	go func() {
+		select {
+		case result := <-match.Buffer():
+			t.Log(result.Bid.Name(), result.Trigger.String(), result.Trigger.Unit, result.Trades)
+		case <-time.After(3 * time.Second):
+		}
+	}()
 
 	for _, v := range b.Buy().List() {
 		t.Log("Buy", v.Content)

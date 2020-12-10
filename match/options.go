@@ -21,7 +21,7 @@ func newOptions(opts ...Option) options {
 	opt := options{
 		ctx:    context.Background(),
 		mutex:  &sync.RWMutex{},
-		buffer: make(chan Result),
+		buffer: make(chan Result, 1000),
 		signal: true,
 	}
 	for _, o := range opts {
