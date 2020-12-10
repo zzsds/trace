@@ -24,13 +24,19 @@ type BufferMessage struct {
 	*queue.Node
 }
 
+// UnitType ...
+type UnitType struct {
+	Type
+	Unit
+}
+
 // Unit ...
 type Unit struct {
-	Name    string
-	Price   float64
-	Amount  int
-	UID     int
-	TradeID int
+	ID     int
+	UID    int
+	Name   string
+	Price  float64
+	Amount int
 }
 
 var bids = make(map[int]Server)
@@ -156,15 +162,15 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 		}
 	}
 
-	h.opts.buffer <- &buffer
+	h.opts.buffer <- buffer
 	return *data, nil
 }
 
 // Cancel ...
-func (h *Bid) Cancel(q queue.Server, tradeID int) error {
+func (h *Bid) Cancel(q queue.Server, ID int) error {
 	q.Loop(func(n *queue.Node) error {
 		content := n.Data.Content
-		if content != nil && content.(*Unit).TradeID == tradeID {
+		if content != nil && content.(*Unit).ID == ID {
 			q.Remove(n)
 		}
 		return nil

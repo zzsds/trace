@@ -1,11 +1,13 @@
 package match
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 
 	"github.com/zzsds/trade/bid"
+	"github.com/zzsds/trade/queue"
 )
 
 // Server ...
@@ -15,6 +17,7 @@ type Server interface {
 	Bid(bid.Server) Server
 	Run() error
 	Suspend() error
+	Buffer() <-chan interface{}
 }
 
 // Result 撮合结果
@@ -22,8 +25,8 @@ type Result struct {
 	Bid     bid.Server
 	Amount  int
 	Price   float64
-	Trigger bid.Unit
-	Trades  []bid.Unit
+	Trigger bid.UnitType
+	Trades  []bid.UnitType
 }
 
 // Match Match
@@ -61,6 +64,11 @@ func (h *Match) Suspend() error {
 	return nil
 }
 
+// Buffer ...
+func (h *Match) Buffer() <-chan interface{} {
+	return h.opts.buffer
+}
+
 // Stop ...
 func (h *Match) Stop() error {
 	h.bid.Init()
@@ -68,67 +76,97 @@ func (h *Match) Stop() error {
 }
 
 // Handle ...
-func (h *Match) handle() error {
-	go func() {
-		for {
-			select {
-			case buf := <-h.bid.Buffer():
-				result := Result{Bid: h.bid}
-				msg := buf.(*bid.BufferMessage)
-				q := msg.Queue
-				if q == h.bid.Buy() {
-					sell := h.bid.Sell()
-					for n := sell.Front(); n != nil; n = n.Next() {
-						content := n.Data.Content.(*bid.Unit)
-						unit := msg.Data.Content.(*bid.Unit)
-						if unit.Price >= content.Price {
-							if unit.Amount == content.Amount {
-								sell.Remove(n)
-								q.Remove(msg.Node)
-								log.Println(q.Name(), unit.Price, "--------------")
-								result.Amount = unit.Amount
-								result.Price = unit.Price
-								result.Trigger = *unit
-								result.Trades = append(result.Trades, *content)
-								break
-							}
-						}
-					}
-				} else if q == h.bid.Sell() {
-					buy := h.bid.Buy()
-					for n := h.bid.Buy().Front(); n != nil; n = n.Next() {
-						content := n.Data.Content.(*bid.Unit)
-						unit := msg.Data.Content.(*bid.Unit)
-						if unit.Price <= content.Price {
-							if unit.Amount == content.Amount {
-								buy.Remove(n)
-								q.Remove(msg.Node)
-								result.Amount = unit.Amount
-								result.Price = unit.Price
-								result.Trigger = *unit
-								result.Trades = append(result.Trades, *content)
-								log.Println(msg.Queue.Name(), unit.Price)
-								break
-							}
-						}
-					}
-				}
+func (h *Match) matchBuy(q queue.Server, n *queue.Node) error {
+	unit, ok := n.Content().(*bid.Unit)
+	if !ok {
+		return fmt.Errorf("buffer data type fail %v", n.Content())
+	}
 
-				// 成交后进行缓冲推送
-				if result.Amount > 0 {
-					h.opts.buffer <- &result
+	result := Result{Bid: h.bid, Trigger: bid.UnitType{Unit: *unit}}
+
+	if q == h.bid.Buy() {
+		result.Trigger.Type = bid.Type_Buy
+		sell := h.bid.Sell()
+		for n := sell.Front(); n != nil; n = n.Next() {
+			content, ok := n.Data.Content.(*bid.Unit)
+			if !ok {
+				break
+			}
+			if unit.Price >= content.Price && result.Amount < unit.Amount {
+				result.Price = content.Price
+				if unit.Amount <= content.Amount {
+					q.Remove(n)
+					result.Amount += unit.Amount
+					// 减去购买数量
+					unit.Amount -= unit.Amount
+					content.Amount -= unit.Amount
+					if unit.Amount == content.Amount {
+						sell.Remove(n)
+					}
+
+					result.Trades = append(result.Trades, bid.UnitType{Type: bid.Type_Sell, Unit: *content})
+					break
+				}
+				if unit.Amount > content.Amount {
+					sell.Remove(n)
+					// 减去购买数量
+					unit.Amount -= content.Amount
+					// 加入到撮合成功数量中
+					result.Amount += content.Amount
+					result.Trades = append(result.Trades, bid.UnitType{Type: bid.Type_Sell, Unit: *content})
+					continue
 				}
 			}
 		}
-	}()
+	} else if q == h.bid.Sell() {
+		result.Trigger.Type = bid.Type_Buy
+		buy := h.bid.Buy()
+		for n := h.bid.Buy().Front(); n != nil; n = n.Next() {
+			content := n.Data.Content.(*bid.Unit)
+			if unit.Price <= content.Price {
+				if unit.Amount == content.Amount {
+					buy.Remove(n)
+					q.Remove(n)
+					result.Amount = unit.Amount
+					result.Price = unit.Price
+					result.Trades = append(result.Trades, bid.UnitType{Type: bid.Type_Sell, Unit: *content})
+					log.Println(q.Name(), unit.Price)
+					break
+				}
+			}
+		}
+	}
+	// 扣减当前交易结果
+	if result.Amount < result.Trigger.Unit.Amount {
+		n.Value().Update(unit)
+	}
+	// 成交后进行缓冲推送
+	if result.Amount > 0 {
+		h.opts.buffer <- &result
+	}
 	return nil
 }
 
 // Run ...
 func (h *Match) Run() error {
-
 	// 处理撮合
-	h.handle()
+	go func() {
+		for {
+			select {
+			case buf := <-h.bid.Buffer():
+				message, ok := buf.(bid.BufferMessage)
+				if !ok {
+					break
+				}
+				switch q := message.Queue; q {
+				case h.bid.Buy():
+					h.matchBuy(q, message.Node)
+				case h.bid.Sell():
+					h.matchBuy(q, message.Node)
+				}
+			}
+		}
+	}()
 
 	ch := make(chan os.Signal, 1)
 	if h.opts.signal {
@@ -138,4 +176,12 @@ func (h *Match) Run() error {
 	// wait on kill signal
 	<-ch
 	return h.Stop()
+}
+
+func (h *Match) buy() {
+
+}
+
+func (h *Match) sell() {
+
 }

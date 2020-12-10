@@ -31,6 +31,12 @@ type Server interface {
 	Loop(Call) error
 }
 
+// NodeServer ...
+type NodeServer interface {
+	Next() NodeServer
+	Prev() NodeServer
+}
+
 // Node ...
 type Node struct {
 	queue      *queue
@@ -71,6 +77,16 @@ func (e *Node) Prev() *Node {
 		return p
 	}
 	return nil
+}
+
+// Value ...
+func (e *Node) Value() *Data {
+	return e.Data
+}
+
+// Content ...
+func (e *Node) Content() interface{} {
+	return e.Data.Content
 }
 
 // Queue ...
@@ -333,6 +349,7 @@ func (h *queue) List() []Data {
 
 // Data ...
 type Data struct {
+	opts     options
 	UUID     string
 	CreateAt time.Time
 	ExpireAt *time.Time
@@ -342,15 +359,11 @@ type Data struct {
 // DataFunc ...
 type DataFunc func(*Data) error
 
-// Formate ...
-func (h *Data) Formate(c DataFunc) error {
-	return c(h)
-}
-
 // NewData ...
 func NewData(content interface{}) *Data {
 	uuid, _ := uuid.NewUUID()
 	return &Data{
+		opts:     newOptions(Name("Default")),
 		UUID:     uuid.String(),
 		CreateAt: time.Now(),
 		Content:  content,
@@ -361,6 +374,7 @@ func NewData(content interface{}) *Data {
 func NewExpireData(content interface{}, expire time.Time) *Data {
 	uuid, _ := uuid.NewUUID()
 	return &Data{
+		opts:     newOptions(Name("Default")),
 		UUID:     uuid.String(),
 		CreateAt: time.Now(),
 		Content:  content,
@@ -368,8 +382,10 @@ func NewExpireData(content interface{}, expire time.Time) *Data {
 	}
 }
 
-// AddData 插入数据到队列
-func (h *queue) AddData(content interface{}) {
+// Update ...
+func (h *Data) Update(content interface{}) error {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
+	h.Content = content
+	return nil
 }

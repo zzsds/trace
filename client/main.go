@@ -23,20 +23,20 @@ func main() {
 	b, _ := t.LoadBid(1)
 
 	data := queue.NewData(&bid.Unit{
-		Name:    "xlj",
-		Amount:  int(rand.Intn(1000)),
-		Price:   1.0,
-		UID:     0,
-		TradeID: 0,
+		Name:   "xlj",
+		Amount: int(rand.Intn(1000)),
+		Price:  1.0,
+		UID:    0,
+		ID:     0,
 	})
 	b.Buy().Push(data)
 
 	data = queue.NewData(&bid.Unit{
-		Name:    "qwe",
-		Amount:  int(rand.Intn(1000)),
-		Price:   1.0,
-		UID:     0,
-		TradeID: 0,
+		Name:   "qwe",
+		Amount: int(rand.Intn(1000)),
+		Price:  1.0,
+		UID:    0,
+		ID:     0,
 	})
 	b.Sell().Push(data)
 	// fmt.Println(b)
@@ -68,21 +68,21 @@ func queueTest() {
 
 	rand.Seed(time.Now().Unix())
 	data := queue.NewExpireData(&bid.Unit{
-		Name:    "qwe",
-		Amount:  int(rand.Intn(1000)),
-		Price:   1.0,
-		UID:     0,
-		TradeID: 0,
+		Name:   "qwe",
+		Amount: int(rand.Intn(1000)),
+		Price:  1.0,
+		UID:    0,
+		ID:     0,
 	}, time.Now().Add(3*time.Second))
 	que.Push(data)
 
 	time.Sleep(5 * time.Second)
 	data = queue.NewData(&bid.Unit{
-		Name:    "xlj",
-		Amount:  int(rand.Intn(1000)),
-		Price:   1.0,
-		UID:     0,
-		TradeID: 0,
+		Name:   "xlj",
+		Amount: int(rand.Intn(1000)),
+		Price:  1.0,
+		UID:    0,
+		ID:     0,
 	})
 	que.Unshift(data)
 

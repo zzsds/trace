@@ -11,11 +11,11 @@ import (
 var que Server
 
 type Unit struct {
-	Name    string
-	Price   float64
-	Amount  int
-	UID     int
-	TradeID int
+	Name   string
+	Price  float64
+	Amount int
+	UID    int
+	ID     int
 }
 
 func TestMain(t *testing.M) {
@@ -27,7 +27,7 @@ func TestMain(t *testing.M) {
 			case buf := <-que.Buffer():
 				switch buf.(type) {
 				case *Unit:
-					log.Println(buf.(*Unit).TradeID)
+					log.Println(buf.(*Unit).ID)
 				}
 			case <-time.After(10 * time.Second):
 				log.Fatal("10 超时")
@@ -53,11 +53,11 @@ func TestListen(t *testing.T) {
 func TestPush(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	node := NewData(&Unit{
-		Name:    "qwe",
-		Amount:  rand.Intn(1000),
-		Price:   1.0,
-		UID:     0,
-		TradeID: 0,
+		Name:   "qwe",
+		Amount: rand.Intn(1000),
+		Price:  1.0,
+		UID:    0,
+		ID:     0,
 	})
 	que.Push(node)
 
@@ -67,11 +67,11 @@ func TestPush(t *testing.T) {
 func TestUnshift(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	data := NewData(&Unit{
-		Name:    "asd",
-		Amount:  int(rand.Intn(1000)),
-		Price:   2.0,
-		UID:     1,
-		TradeID: 1,
+		Name:   "asd",
+		Amount: int(rand.Intn(1000)),
+		Price:  2.0,
+		UID:    1,
+		ID:     1,
 	})
 	que.Unshift(data)
 	t.Run("TestPrint", TestQueuePrint)
@@ -86,11 +86,11 @@ func TestExpireUnshift(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	expire := time.Now().Add(3 * time.Second)
 	node := NewExpireData(&Unit{
-		Name:    "xlj",
-		Amount:  int(rand.Intn(1000)),
-		Price:   2.0,
-		UID:     1,
-		TradeID: 1,
+		Name:   "xlj",
+		Amount: int(rand.Intn(1000)),
+		Price:  2.0,
+		UID:    1,
+		ID:     1,
 	}, expire)
 	que.Unshift(node)
 	t.Run("TestPrint", TestQueuePrint)
@@ -140,11 +140,11 @@ func BenchmarkQueueUnshift(t *testing.B) {
 	for i := 0; i < t.N; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(i), 64)
 		que.Unshift(NewData(&Unit{
-			Name:    "xlj",
-			Amount:  int(rand.Intn(10000000000)),
-			Price:   price,
-			UID:     int(i),
-			TradeID: int(i),
+			Name:   "xlj",
+			Amount: int(rand.Intn(10000000000)),
+			Price:  price,
+			UID:    int(i),
+			ID:     int(i),
 		}))
 	}
 	t.Log(t.N, que.Len(), "success")
@@ -154,11 +154,11 @@ func BenchmarkQueuePush(t *testing.B) {
 	for i := 0; i < t.N; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(i), 64)
 		que.Push(NewData(&Unit{
-			Name:    "xlj",
-			Amount:  int(rand.Intn(10000000000)),
-			Price:   price,
-			UID:     int(i),
-			TradeID: int(i),
+			Name:   "xlj",
+			Amount: int(rand.Intn(10000000000)),
+			Price:  price,
+			UID:    int(i),
+			ID:     int(i),
 		}))
 	}
 	t.Log(t.N, que.Len(), "success")

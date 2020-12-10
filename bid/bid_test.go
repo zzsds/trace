@@ -32,22 +32,22 @@ func TestAdd(t *testing.T) {
 	for i := 0; i < 1500; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 		bid.Add(bid.Buy(), &Unit{
-			Name:    "xlj-" + strconv.Itoa(i),
-			Price:   price / 3.5,
-			Amount:  i,
-			UID:     i,
-			TradeID: i,
+			Name:   "xlj-" + strconv.Itoa(i),
+			Price:  price / 3.5,
+			Amount: i,
+			UID:    i,
+			ID:     i,
 		})
 	}
 
 	for i := 0; i < 500; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 		bid.Add(bid.Sell(), &Unit{
-			Name:    "wj-" + strconv.Itoa(i),
-			Price:   price / 2.5,
-			Amount:  2,
-			UID:     i,
-			TradeID: i,
+			Name:   "wj-" + strconv.Itoa(i),
+			Price:  price / 2.5,
+			Amount: 2,
+			UID:    i,
+			ID:     i,
 		})
 	}
 
@@ -75,11 +75,11 @@ func BenchmarkAdd(t *testing.B) {
 		}
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 		bid.Add(traceType, &Unit{
-			Name:    "xlj",
-			Amount:  int(rand.Intn(1000)),
-			Price:   price / 3.5,
-			UID:     int(i),
-			TradeID: int(i),
+			Name:   "xlj",
+			Amount: int(rand.Intn(1000)),
+			Price:  price / 3.5,
+			UID:    int(i),
+			ID:     int(i),
 		})
 	}
 	t.Log(bid.Buy().Len(), bid.Sell().Len())
