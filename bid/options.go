@@ -6,11 +6,13 @@ import (
 
 // options ...
 type options struct {
-	mutex  *sync.RWMutex
-	id     int
-	name   string
-	buffer chan Message
-	signal bool
+	mutex     *sync.RWMutex
+	id        int
+	name      string
+	amount    int
+	maxAmount int
+	buffer    chan Message
+	signal    bool
 }
 
 // Option ...

@@ -39,6 +39,11 @@ type Unit struct {
 	Amount int
 }
 
+// NewUnit ...
+func NewUnit() *Unit {
+	return new(Unit)
+}
+
 var bids = make(map[int]Server)
 
 // Bid bid
@@ -101,6 +106,11 @@ func (h *Bid) Sell() queue.Server {
 	return h.sell
 }
 
+// Amount ...
+func (h *Bid) Amount() int {
+	return h.opts.amount
+}
+
 // Add ...
 func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 	buffer := Message{Queue: q}
@@ -115,7 +125,7 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 			content := n.Data().Content.(*Unit)
 			if content.UID == u.UID && content.Price == u.Price {
 				content.Amount += u.Amount
-				n.Data().Content = content
+				n.Data().Update(content)
 				buffer.Node = n
 				break
 			}
@@ -143,7 +153,7 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 			content := n.Data().Content.(*Unit)
 			if content.UID == u.UID && content.Price == u.Price {
 				content.Amount += u.Amount
-				n.Data().Content = content
+				n.Data().Update(content)
 				buffer.Node = n
 				break
 			}
@@ -161,7 +171,7 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 			}
 		}
 	}
-
+	h.opts.amount++
 	h.opts.buffer <- buffer
 	return *data, nil
 }

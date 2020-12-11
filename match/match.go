@@ -75,10 +75,14 @@ func (h *Match) Stop() error {
 }
 
 func (h *Match) matchBuy(q queue.Server, n queue.NodeServer) error {
-	unit, ok := n.Data().Content.(*bid.Unit)
-	if !ok {
-		return fmt.Errorf("buffer data type fail %v", n.Data().Content)
+	unit := bid.NewUnit()
+	if err := n.Content(unit); err != nil {
+		return err
 	}
+	// unit, ok := n.Data().Content.(*bid.Unit)
+	// if !ok {
+	// 	return fmt.Errorf("buffer data type fail %v", n.Data().Content)
+	// }
 
 	result := Result{Bid: h.bid, Trigger: bid.UnitType{Type: bid.Type_Buy, Unit: *unit}}
 

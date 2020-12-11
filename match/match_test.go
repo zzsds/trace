@@ -21,7 +21,7 @@ func TestRun(t *testing.T) {
 	match := matchup.Bid(b)
 	go match.Run()
 
-	for i := 0; i < 2000; i++ {
+	for i := 0; i < 11999; i++ {
 		traceType := b.Buy()
 		if i%2 != 0 {
 			traceType = b.Sell()

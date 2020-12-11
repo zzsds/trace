@@ -26,7 +26,7 @@ func TestBuffer(t *testing.T) {
 		for {
 			select {
 			case message := <-bid.Buffer():
-				t.Log(message.Queue.Name(), message.Node)
+				t.Log(message.Queue.Name(), message.Node.Data().Content)
 			}
 		}
 	}()
@@ -35,23 +35,17 @@ func TestBuffer(t *testing.T) {
 func TestAdd(t *testing.T) {
 	t.Run("TestBuffer", TestBuffer)
 	rand.Seed(time.Now().Unix())
-	for i := 0; i < 1500; i++ {
+	for i := 0; i < 10; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
-		bid.Add(bid.Buy(), &Unit{
+
+		traceType := bid.Buy()
+		if i%2 != 0 {
+			traceType = bid.Sell()
+		}
+		bid.Add(traceType, &Unit{
 			Name:   "xlj-" + strconv.Itoa(i),
 			Price:  price / 3.5,
 			Amount: i,
-			UID:    i,
-			ID:     i,
-		})
-	}
-
-	for i := 0; i < 500; i++ {
-		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
-		bid.Add(bid.Sell(), &Unit{
-			Name:   "wj-" + strconv.Itoa(i),
-			Price:  price / 2.5,
-			Amount: 2,
 			UID:    i,
 			ID:     i,
 		})
@@ -67,10 +61,10 @@ func TestAdd(t *testing.T) {
 	}
 	t.Logf("sell length %d", bid.Sell().Len())
 
-	// select {
-	// case timeout := <-time.After(1 * time.Second):
-	// 	t.Fatal(timeout)
-	// }
+	select {
+	case timeout := <-time.After(3 * time.Second):
+		t.Fatal(timeout)
+	}
 }
 
 func BenchmarkAdd(t *testing.B) {

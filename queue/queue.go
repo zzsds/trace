@@ -1,10 +1,9 @@
 package queue
 
 import (
-	"fmt"
+	"encoding/json"
 	"os"
 	"os/signal"
-	"reflect"
 	"time"
 
 	"github.com/google/uuid"
@@ -90,19 +89,11 @@ func (e *Node) Data() *Data {
 
 // Content ...
 func (e *Node) Content(v interface{}) error {
-	if e.data.Content != nil {
-		v = e.data.Content
+	b, err := json.Marshal(e.data.Content)
+	if err != nil {
+		return err
 	}
-	reflectValue := reflect.ValueOf(v)
-	for reflectValue.Kind() == reflect.Ptr {
-		reflectValue = reflectValue.Elem()
-	}
-
-	if !reflectValue.IsValid() {
-		return fmt.Errorf("invalid value")
-	}
-
-	return nil
+	return json.Unmarshal(b, v)
 }
 
 // Queue ...
