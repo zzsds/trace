@@ -24,8 +24,8 @@ type Server interface {
 	InsertAfter(*Data, *Node) *Node
 	Header() *Node
 	Tailed() *Node
-	WriteBuffer(interface{}) chan interface{}
-	Buffer() <-chan interface{}
+	WriteBuffer(Data) chan Data
+	Buffer() <-chan Data
 	Remove(*Node) interface{}
 	Listen(Call) error
 	List() []Data
@@ -34,10 +34,10 @@ type Server interface {
 
 // NodeServer ...
 type NodeServer interface {
+	Current() *Node
 	Next() *Node
 	Prev() *Node
 	Data() *Data
-	Content(interface{}) error
 }
 
 // Node ...
@@ -66,6 +66,11 @@ func (e *Node) init() *Node {
 	return e
 }
 
+// Current ...
+func (e *Node) Current() *Node {
+	return e
+}
+
 // Next returns the next list Node or nil.
 func (e *Node) Next() *Node {
 	if p := e.next; e.queue != nil && p != &e.queue.head {
@@ -85,15 +90,6 @@ func (e *Node) Prev() *Node {
 // Data ...
 func (e *Node) Data() *Data {
 	return e.data
-}
-
-// Content ...
-func (e *Node) Content(v interface{}) error {
-	b, err := json.Marshal(e.data.Content)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(b, v)
 }
 
 // Queue ...
@@ -208,13 +204,13 @@ func (h *queue) Tailed() *Node {
 }
 
 // WriteBuffer 写入数据到缓冲
-func (h *queue) WriteBuffer(v interface{}) chan interface{} {
+func (h *queue) WriteBuffer(v Data) chan Data {
 	h.opts.buffer <- v
 	return h.opts.buffer
 }
 
 // Buffer 获取缓冲
-func (h *queue) Buffer() <-chan interface{} {
+func (h *queue) Buffer() <-chan Data {
 	return h.opts.buffer
 }
 
@@ -390,9 +386,26 @@ func NewExpireData(content interface{}, expire time.Time) *Data {
 }
 
 // Update ...
-func (h *Data) Update(content interface{}) error {
+func (h *Data) Update(data *Data) error {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
-	h.Content = content
+	h = data
 	return nil
+}
+
+// UpdateContent ...
+func (h *Data) UpdateContent(v interface{}) error {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
+	h.Content = v
+	return nil
+}
+
+// ParseContent ...
+func (h *Data) ParseContent(v interface{}) error {
+	b, err := json.Marshal(h.Content)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, v)
 }

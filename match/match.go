@@ -1,12 +1,11 @@
 package match
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/zzsds/trade/bid"
-	"github.com/zzsds/trade/queue"
 )
 
 // Server ...
@@ -74,46 +73,62 @@ func (h *Match) Stop() error {
 	return nil
 }
 
-func (h *Match) matchBuy(q queue.Server, n queue.NodeServer) error {
-	unit := bid.NewUnit()
-	if err := n.Content(unit); err != nil {
+// 撮合卖
+func (h *Match) match(message bid.Message) error {
+	node := message.Node
+	currentUnit := bid.NewUnit()
+	if err := node.Data().ParseContent(currentUnit); err != nil {
 		return err
 	}
-	// unit, ok := n.Data().Content.(*bid.Unit)
-	// if !ok {
-	// 	return fmt.Errorf("buffer data type fail %v", n.Data().Content)
-	// }
+	result := Result{Bid: h.bid, Trigger: bid.UnitType{Type: bid.Type_Buy, Unit: *currentUnit}}
+	unitType := bid.UnitType{Type: bid.Type_Sell}
 
-	result := Result{Bid: h.bid, Trigger: bid.UnitType{Type: bid.Type_Buy, Unit: *unit}}
+	current, object := h.bid.Buy(), h.bid.Sell()
+	if message.Queue == h.bid.Sell() {
+		current, object = h.bid.Sell(), h.bid.Buy()
+		// 指定当前交易类型
+		result.Trigger.Type = bid.Type_Sell
+		// 反向指定交易对象
+		object = h.bid.Buy()
+		// 反向指定交易对象类型
+		unitType.Type = bid.Type_Buy
+	}
 
-	bizBid := h.bid.Sell()
-	for n := bizBid.Front(); n != nil; n = n.Next() {
-		content, ok := n.Data().Content.(*bid.Unit)
+	for n := object.Front(); n != nil && currentUnit.Amount > result.Amount; n = n.Next() {
+		objectUnit, ok := n.Data().Content.(*bid.Unit)
 		if !ok {
 			break
 		}
-		if unit.Price >= content.Price && result.Amount < unit.Amount {
-			result.Price = content.Price
-			if unit.Amount <= content.Amount {
-				q.Remove(n)
-				result.Amount += unit.Amount
-				// 减去购买数量
-				unit.Amount -= unit.Amount
-				content.Amount -= unit.Amount
-				if unit.Amount == content.Amount {
-					bizBid.Remove(n)
-				}
-
-				result.Trades = append(result.Trades, bid.UnitType{Type: bid.Type_Sell, Unit: *content})
+		current.Remove(node.Current())
+		unitType.Unit = *objectUnit
+		if currentUnit.Price >= objectUnit.Price {
+			// 数量相等 全部匹配
+			if currentUnit.Amount == objectUnit.Amount {
+				current.Remove(node.Current())
+				object.Remove(n)
+				// 加入到撮合成功数量中
+				result.Amount += objectUnit.Amount
+				result.Trades = append(result.Trades, unitType)
 				break
 			}
-			if unit.Amount > content.Amount {
-				bizBid.Remove(n)
-				// 减去购买数量
-				unit.Amount -= content.Amount
+
+			if currentUnit.Amount < objectUnit.Amount {
+				current.Remove(node.Current())
+				objectUnit.Amount -= currentUnit.Amount
+				n.Data().UpdateContent(objectUnit)
 				// 加入到撮合成功数量中
-				result.Amount += content.Amount
-				result.Trades = append(result.Trades, bid.UnitType{Type: bid.Type_Sell, Unit: *content})
+				result.Amount += currentUnit.Amount
+				result.Trades = append(result.Trades, unitType)
+				break
+			}
+
+			if currentUnit.Amount > objectUnit.Amount {
+				object.Remove(n)
+				// 加入到撮合成功数量中
+				result.Amount += objectUnit.Amount
+				// 减去购买数量
+				currentUnit.Amount -= objectUnit.Amount
+				result.Trades = append(result.Trades, unitType)
 				continue
 			}
 		}
@@ -121,41 +136,7 @@ func (h *Match) matchBuy(q queue.Server, n queue.NodeServer) error {
 
 	// 扣减当前交易结果
 	if result.Amount < result.Trigger.Unit.Amount {
-		n.Data().Update(unit)
-	}
-	// 成交后进行缓冲推送
-	if result.Amount > 0 {
-		h.opts.buffer <- result
-	}
-	return nil
-}
-
-func (h *Match) matchSell(q queue.Server, n queue.NodeServer) error {
-	unit, ok := n.Data().Content.(*bid.Unit)
-	if !ok {
-		return fmt.Errorf("buffer data type fail %v", n.Data().Content)
-	}
-
-	result := Result{Bid: h.bid, Trigger: bid.UnitType{Unit: *unit}}
-
-	bizBid := h.bid.Buy()
-	for n := bizBid.Front(); n != nil; n = n.Next() {
-		content := n.Data().Content.(*bid.Unit)
-		if unit.Price <= content.Price {
-			if unit.Amount == content.Amount {
-				bizBid.Remove(n)
-				q.Remove(n)
-				result.Amount = unit.Amount
-				result.Price = unit.Price
-				result.Trades = append(result.Trades, bid.UnitType{Type: bid.Type_Buy, Unit: *content})
-				// log.Println(q.Name(), unit.Price)
-				break
-			}
-		}
-	}
-	// 扣减当前交易结果
-	if result.Amount < result.Trigger.Unit.Amount {
-		n.Data().Update(unit)
+		node.Data().UpdateContent(currentUnit)
 	}
 	// 成交后进行缓冲推送
 	if result.Amount > 0 {
@@ -170,15 +151,10 @@ func (h *Match) Run() error {
 	go func() {
 		for {
 			select {
+			case <-time.After(1 * time.Second):
 			case message := <-h.bid.Buffer():
-
-				switch q := message.Queue; q {
-				case h.bid.Buy():
-					if err := h.matchBuy(q, message.Node); err != nil {
-						break
-					}
-				case h.bid.Sell():
-					h.matchBuy(q, message.Node)
+				if err := h.match(message); err != nil {
+					break
 				}
 			}
 		}

@@ -25,10 +25,7 @@ func TestMain(t *testing.M) {
 		for {
 			select {
 			case buf := <-que.Buffer():
-				switch buf.(type) {
-				case *Unit:
-					log.Println(buf.(*Unit).ID)
-				}
+				log.Println(buf.UUID)
 			case <-time.After(10 * time.Second):
 				log.Fatal("10 超时")
 			}
@@ -41,7 +38,7 @@ func TestMain(t *testing.M) {
 func TestListen(t *testing.T) {
 	que.Listen(func(n *Node) error {
 		if n.Data().ExpireAt == nil {
-			que.WriteBuffer(n.Data().Content)
+			que.WriteBuffer(*n.Data())
 			que.Remove(n)
 		} else if n.Data().ExpireAt.Before(time.Now()) {
 			n.Data().ExpireAt = nil
@@ -101,7 +98,7 @@ func TestBuffer(t *testing.T) {
 		for {
 			select {
 			case buf := <-que.Buffer():
-				log.Println(buf.(*Unit))
+				log.Println(buf)
 			case <-time.After(10 * time.Second):
 				log.Fatal("10 超时")
 			}

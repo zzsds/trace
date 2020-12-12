@@ -86,8 +86,8 @@ func (h *Bid) ID() int {
 
 // Init 初始化交易对
 func (h *Bid) Init() Server {
-	h.buy = queue.NewQueue(queue.Name("Buy"))
-	h.sell = queue.NewQueue(queue.Name("Sell"))
+	h.buy = queue.NewQueue(queue.Name(Type_Buy.String()))
+	h.sell = queue.NewQueue(queue.Name(Type_Sell.String()))
 	return h
 }
 
@@ -113,66 +113,44 @@ func (h *Bid) Amount() int {
 
 // Add ...
 func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
-	buffer := Message{Queue: q}
+	message := Message{Queue: q}
 	data := queue.NewData(u)
-	//如果是买家队列，按照价格高优先，时间优先
-	if h.buy == q {
-		for n := q.Front(); ; n = n.Next() {
-			if n == nil {
-				buffer.Node = q.Push(data)
-				break
-			}
-			content := n.Data().Content.(*Unit)
-			if content.UID == u.UID && content.Price == u.Price {
+	for n := q.Front(); ; n = n.Next() {
+		if n == nil {
+			message.Node = q.Push(data)
+			break
+		}
+		content := n.Data().Content.(*Unit)
+		if content.Price == u.Price {
+			if content.UID == u.UID {
 				content.Amount += u.Amount
-				n.Data().Update(content)
-				buffer.Node = n
+				n.Data().UpdateContent(content)
+				message.Node = n
 				break
 			}
-
-			//价格高者优先
-			if u.Price > content.Price {
-				buffer.Node = q.InsertBefore(data, n)
-				break
-			}
-
-			//时间优先
-			if u.Price == content.Price && n.Data().CreateAt.After(data.CreateAt) {
-				buffer.Node = q.InsertBefore(data, n)
+			if n.Data().CreateAt.After(data.CreateAt) {
+				message.Node = q.InsertBefore(data, n)
 				break
 			}
 		}
-	}
 
-	if h.sell == q {
-		for n := q.Front(); ; n = n.Next() {
-			if n == nil {
-				buffer.Node = q.Push(data)
+		//如果是买家队列，按照价格高优先，时间优先
+		if h.buy == q {
+			//价格高者优先
+			if u.Price > content.Price {
+				message.Node = q.InsertBefore(data, n)
 				break
 			}
-			content := n.Data().Content.(*Unit)
-			if content.UID == u.UID && content.Price == u.Price {
-				content.Amount += u.Amount
-				n.Data().Update(content)
-				buffer.Node = n
-				break
-			}
-
+		} else if h.sell == q {
 			//价格高者优先
 			if content.Price > u.Price {
-				buffer.Node = q.InsertBefore(data, n)
-				break
-			}
-
-			//时间优先
-			if content.Price == u.Price && n.Data().CreateAt.After(data.CreateAt) {
-				buffer.Node = q.InsertBefore(data, n)
+				message.Node = q.InsertBefore(data, n)
 				break
 			}
 		}
 	}
 	h.opts.amount++
-	h.opts.buffer <- buffer
+	h.opts.buffer <- message
 	return *data, nil
 }
 

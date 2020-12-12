@@ -11,13 +11,6 @@ var bid Server
 
 func TestMain(t *testing.M) {
 	bid = NewBid(Name("Product"))
-	go func() {
-		for {
-			select {
-			case <-bid.Buffer():
-			}
-		}
-	}()
 	t.Run()
 }
 
@@ -35,7 +28,7 @@ func TestBuffer(t *testing.T) {
 func TestAdd(t *testing.T) {
 	t.Run("TestBuffer", TestBuffer)
 	rand.Seed(time.Now().Unix())
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 
 		traceType := bid.Buy()
@@ -61,10 +54,7 @@ func TestAdd(t *testing.T) {
 	}
 	t.Logf("sell length %d", bid.Sell().Len())
 
-	select {
-	case timeout := <-time.After(3 * time.Second):
-		t.Fatal(timeout)
-	}
+	<-time.After(1 * time.Millisecond)
 }
 
 func BenchmarkAdd(t *testing.B) {
@@ -73,6 +63,7 @@ func BenchmarkAdd(t *testing.B) {
 		if i%2 != 0 {
 			traceType = bid.Sell()
 		}
+
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 		bid.Add(traceType, &Unit{
 			Name:   "xlj",
@@ -82,5 +73,13 @@ func BenchmarkAdd(t *testing.B) {
 			ID:     int(i),
 		})
 	}
-	t.Log(bid.Buy().Len(), bid.Sell().Len())
+
+	go func() {
+		for {
+			select {
+			case <-bid.Buffer():
+			}
+		}
+	}()
+	t.Log(t.N, bid.Buy().Len(), bid.Sell().Len())
 }
