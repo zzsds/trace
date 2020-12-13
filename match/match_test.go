@@ -18,11 +18,13 @@ func TestMain(t *testing.M) {
 
 func TestBuffer(t *testing.T) {
 	go func() {
-		select {
-		case result := <-matchup.Buffer():
-			t.Logf("%s, %s, %#v, %v", result.Bid.Name(), result.Trigger.String(), result.Trigger.Unit, result.Trades)
-		case <-time.After(3 * time.Second):
+		for {
+			select {
+			case result := <-matchup.Buffer():
+				t.Logf("%s, %s, %#v, %#v", result.Bid.Name(), result.Trigger.String(), result.Trigger.Unit, result.Trades)
+			}
 		}
+
 	}()
 }
 

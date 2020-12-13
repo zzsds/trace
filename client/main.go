@@ -8,6 +8,7 @@ import (
 
 	"github.com/zzsds/trade"
 	"github.com/zzsds/trade/bid"
+	"github.com/zzsds/trade/match"
 	"github.com/zzsds/trade/queue"
 )
 
@@ -16,30 +17,14 @@ func main() {
 	t := trade.Newtrade(func(o *trade.Options) {
 		o.Name = "New Product"
 	})
-
-	log.Println(t.Name())
-
-	t.RegisterBid(1, bid.NewBid(bid.Name("product")))
-	b, _ := t.LoadBid(1)
-
-	data := queue.NewData(&bid.Unit{
-		Name:   "xlj",
-		Amount: int(rand.Intn(1000)),
-		Price:  1.0,
-		UID:    0,
-		ID:     0,
-	})
-	b.Buy().Push(data)
-
-	data = queue.NewData(&bid.Unit{
-		Name:   "qwe",
-		Amount: int(rand.Intn(1000)),
-		Price:  1.0,
-		UID:    0,
-		ID:     0,
-	})
-	b.Sell().Push(data)
-	// fmt.Println(b)
+	m := match.NewMatch(match.Name("goods")).Bid(bid.NewBid(bid.Name("test")))
+	go func() {
+		time.Sleep(2 * time.Second)
+		m.Suspend()
+		time.Sleep(2 * time.Second)
+		m.Resume()
+	}()
+	t.Add(m)
 	t.Run()
 }
 

@@ -18,10 +18,11 @@ type options struct {
 type Option func(*options)
 
 func newOptions(opts ...Option) options {
+	ch := make(chan Result, 100)
 	opt := options{
 		ctx:    context.Background(),
 		mutex:  &sync.RWMutex{},
-		buffer: make(chan Result, 1000),
+		buffer: ch,
 		signal: true,
 	}
 	for _, o := range opts {

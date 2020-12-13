@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/zzsds/trade/bid"
 	"github.com/zzsds/trade/match"
 )
 
@@ -16,17 +15,27 @@ var (
 	errMissingName = errors.New("missing service name")
 )
 
+// Server ...
+type Server interface {
+	Name() string
+	Version() string
+	String() string
+	Add(match.Server) Server
+	Load(string) (match.Server, error)
+	Run() error
+}
+
 // Trade 交易
 type Trade struct {
-	opts Options
-	bids map[int]bid.Server
+	opts  Options
+	match map[string]match.Server
 }
 
 // Newtrade 初始化
-func Newtrade(opts ...Option) *Trade {
+func Newtrade(opts ...Option) Server {
 	return &Trade{
-		opts: newOptions(opts...),
-		bids: make(map[int]bid.Server),
+		opts:  newOptions(opts...),
+		match: make(map[string]match.Server),
 	}
 }
 
@@ -40,13 +49,6 @@ func (s *Trade) Version() string {
 	return s.opts.Version
 }
 
-// Init ...
-func (s *Trade) Init(opts ...Option) {
-	for _, o := range opts {
-		o(&s.opts)
-	}
-}
-
 // Options ...
 func (s *Trade) Options() Options {
 	return s.opts
@@ -56,18 +58,34 @@ func (s *Trade) String() string {
 	return "trade"
 }
 
-// Start ...
-func (s *Trade) Start() error {
+// Load ...
+func (s *Trade) Load(name string) (match.Server, error) {
+	m, ok := s.match[name]
+	if !ok {
+		return nil, fmt.Errorf("Trade match non-existent")
+	}
+	return m, nil
+}
+
+// Add ...
+func (s *Trade) Add(match match.Server) Server {
+	if _, ok := s.match[match.Name()]; !ok {
+		s.match[match.Name()] = match
+		go s.match[match.Name()].Run()
+	}
+	return s
+}
+
+// start ...
+func (s *Trade) start() error {
 	for _, fn := range s.opts.BeforeStart {
 		if err := fn(); err != nil {
 			return err
 		}
 	}
 
-	for _, v := range s.bids {
-		m := match.NewMatch()
-		m.Bid(v)
-		go m.Run()
+	for _, v := range s.match {
+		go v.Run()
 	}
 
 	for _, fn := range s.opts.AfterStart {
@@ -75,24 +93,17 @@ func (s *Trade) Start() error {
 			return err
 		}
 	}
-
 	return nil
 }
 
-// Stop ...
-func (s *Trade) Stop() error {
+// stop ...
+func (s *Trade) stop() error {
 	var err error
 
 	for _, fn := range s.opts.BeforeStop {
 		if e := fn(); e != nil {
 			err = e
 		}
-	}
-
-	for _, v := range s.bids {
-		match := match.NewMatch()
-		match.Bid(v)
-		go match.Run()
 	}
 
 	for _, fn := range s.opts.AfterStop {
@@ -111,7 +122,7 @@ func (s *Trade) Run() error {
 		return errMissingName
 	}
 
-	if err := s.Start(); err != nil {
+	if err := s.start(); err != nil {
 		return err
 	}
 
@@ -122,23 +133,5 @@ func (s *Trade) Run() error {
 
 	// wait on kill signal
 	<-ch
-	return s.Stop()
-}
-
-// RegisterBid a bid
-func (s *Trade) RegisterBid(id int, p bid.Server) error {
-	if _, ok := s.bids[id]; ok {
-		return fmt.Errorf("bid %d already exists", id)
-	}
-	s.bids[id] = p
-	return nil
-}
-
-// LoadBid a bid
-func (s *Trade) LoadBid(id int) (bid.Server, error) {
-	v, ok := s.bids[id]
-	if !ok {
-		return nil, fmt.Errorf("bid %d does not exist", id)
-	}
-	return v, nil
+	return s.stop()
 }

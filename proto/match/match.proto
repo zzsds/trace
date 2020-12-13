@@ -1,4 +1,11 @@
 syntax = "proto3";
 
 package match;
-option go_package = "proto/match;match";
+option go_package = "match;match";
+
+enum State {
+  Ready = 0;
+  Progress = 1;
+  Suspend = 2;
+  Stop = 3;
+}

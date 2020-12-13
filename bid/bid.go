@@ -8,14 +8,14 @@ import (
 
 // Server ...
 type Server interface {
+	ID() int
+	Name() string
 	Init() Server
 	Buy() queue.Server
 	Sell() queue.Server
 	Cancel(queue.Server, int) error
 	Add(queue.Server, *Unit) (queue.Data, error)
 	Buffer() <-chan Message
-	ID() int
-	Name() string
 }
 
 // Message 缓冲消息
@@ -79,16 +79,16 @@ func NewBid(opts ...Option) Server {
 	return bid
 }
 
-// ID ...
-func (h *Bid) ID() int {
-	return h.opts.id
-}
-
 // Init 初始化交易对
 func (h *Bid) Init() Server {
 	h.buy = queue.NewQueue(queue.Name(Type_Buy.String()))
 	h.sell = queue.NewQueue(queue.Name(Type_Sell.String()))
 	return h
+}
+
+// ID ...
+func (h *Bid) ID() int {
+	return h.opts.id
 }
 
 // Name ...

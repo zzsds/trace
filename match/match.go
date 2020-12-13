@@ -1,9 +1,9 @@
 package match
 
 import (
+	"log"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/zzsds/trade/bid"
 )
@@ -13,8 +13,12 @@ type Server interface {
 	Init() Server
 	Name() string
 	Bid(bid.Server) Server
-	Run() error
 	Suspend() error
+	Resume() error
+	Start() error
+	Stop() error
+	// Run 启动
+	Run() error
 	Buffer() <-chan Result
 }
 
@@ -57,20 +61,32 @@ func (h *Match) Name() string {
 	return h.opts.name
 }
 
-// Suspend ...
+// Suspend 暂停
 func (h *Match) Suspend() error {
+	h.opts.buffer = nil
+	return nil
+}
+
+// Resume 恢复
+func (h *Match) Resume() error {
+	return nil
+}
+
+// Start ...
+func (h *Match) Start() error {
+	return nil
+}
+
+// Stop ...
+func (h *Match) Stop() error {
+	log.Printf("%s Stop", h.Name())
+	h.bid.Init()
 	return nil
 }
 
 // Buffer ...
 func (h *Match) Buffer() <-chan Result {
 	return h.opts.buffer
-}
-
-// Stop ...
-func (h *Match) Stop() error {
-	h.bid.Init()
-	return nil
 }
 
 // 撮合卖
@@ -147,12 +163,12 @@ func (h *Match) match(message bid.Message) error {
 
 // Run ...
 func (h *Match) Run() error {
-	// 处理撮合
+	// 队列处理撮合
 	go func() {
 		for {
 			select {
-			case <-time.After(1 * time.Second):
 			case message := <-h.bid.Buffer():
+				log.Println("监听状态")
 				if err := h.match(message); err != nil {
 					break
 				}
@@ -168,12 +184,4 @@ func (h *Match) Run() error {
 	// wait on kill signal
 	<-ch
 	return h.Stop()
-}
-
-func (h *Match) buy() {
-
-}
-
-func (h *Match) sell() {
-
 }
