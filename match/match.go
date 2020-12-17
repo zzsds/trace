@@ -1,6 +1,7 @@
 package match
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -63,7 +64,6 @@ func (h *Match) Name() string {
 
 // Suspend 暂停
 func (h *Match) Suspend() error {
-	h.opts.buffer = nil
 	return nil
 }
 
@@ -74,7 +74,8 @@ func (h *Match) Resume() error {
 
 // Start ...
 func (h *Match) Start() error {
-	return nil
+
+	return h.listen()
 }
 
 // Stop ...
@@ -89,7 +90,26 @@ func (h *Match) Buffer() <-chan Result {
 	return h.opts.buffer
 }
 
-// 撮合卖
+// listen 监听委托队列执行撮合交易
+func (h *Match) listen() error {
+	go func() {
+		for {
+			select {
+			case <-h.opts.ctx.Done():
+				fmt.Println("取消撮合")
+				return
+			case message := <-h.bid.Buffer():
+				log.Println("监听状态")
+				if err := h.match(message); err != nil {
+					break
+				}
+			}
+		}
+	}()
+	return nil
+}
+
+// 撮合买卖委托交易
 func (h *Match) match(message bid.Message) error {
 	node := message.Node
 	currentUnit := bid.NewUnit()
@@ -163,18 +183,10 @@ func (h *Match) match(message bid.Message) error {
 
 // Run ...
 func (h *Match) Run() error {
-	// 队列处理撮合
-	go func() {
-		for {
-			select {
-			case message := <-h.bid.Buffer():
-				log.Println("监听状态")
-				if err := h.match(message); err != nil {
-					break
-				}
-			}
-		}
-	}()
+	// 开始撮合
+	if err := h.Start(); err != nil {
+		log.Fatalf("Run Match Fail：%v", err)
+	}
 
 	ch := make(chan os.Signal, 1)
 	if h.opts.signal {

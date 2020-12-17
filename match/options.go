@@ -2,7 +2,9 @@ package match
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"time"
 )
 
 // options ...
@@ -19,8 +21,10 @@ type Option func(*options)
 
 func newOptions(opts ...Option) options {
 	ch := make(chan Result, 100)
+	ctx, cancel := context.WithCancel(context.Background())
+
 	opt := options{
-		ctx:    context.Background(),
+		ctx:    ctx,
 		mutex:  &sync.RWMutex{},
 		buffer: ch,
 		signal: true,
@@ -28,6 +32,15 @@ func newOptions(opts ...Option) options {
 	for _, o := range opts {
 		o(&opt)
 	}
+
+	timer := time.NewTimer(5 * time.Second)
+	go func() {
+		select {
+		case <-timer.C:
+			cancel()
+			fmt.Println("结束")
+		}
+	}()
 	return opt
 }
 

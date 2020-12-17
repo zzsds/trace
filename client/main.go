@@ -14,7 +14,7 @@ import (
 	"github.com/zzsds/trade/queue"
 )
 
-//go:generate go run main.go
+//go:generate go version
 func main() {
 	t := trade.Newtrade(func(o *trade.Options) {
 		o.Name = "New Product"
@@ -28,7 +28,7 @@ func main() {
 	}()
 
 	t.Add(m)
-	go t.Run()
+	t.Run()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		// 输出到STDOUT展示处理已经开始

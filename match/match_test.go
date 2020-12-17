@@ -61,5 +61,5 @@ func TestRun(t *testing.T) {
 
 	t.Log("End")
 	t.Run("TestBuffer", TestBuffer)
-	<-time.After(1 * time.Second)
+	<-time.After(10 * time.Second)
 }
