@@ -1,7 +1,6 @@
 package match
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -64,24 +63,25 @@ func (h *Match) Name() string {
 
 // Suspend 暂停
 func (h *Match) Suspend() error {
+	log.Printf("%s 暂停撮合, 暂未开放", h.Name())
 	return nil
 }
 
 // Resume 恢复
 func (h *Match) Resume() error {
+	log.Printf("%s 恢复撮合, 暂未开放", h.Name())
 	return nil
 }
 
 // Start ...
 func (h *Match) Start() error {
-
+	log.Printf("%s 撮合开始", h.Name())
 	return h.listen()
 }
 
 // Stop ...
 func (h *Match) Stop() error {
-	log.Printf("%s Stop", h.Name())
-	h.bid.Init()
+	log.Printf("%s 撮合停止，暂未开放", h.Name())
 	return nil
 }
 
@@ -95,11 +95,7 @@ func (h *Match) listen() error {
 	go func() {
 		for {
 			select {
-			case <-h.opts.ctx.Done():
-				fmt.Println("取消撮合")
-				return
 			case message := <-h.bid.Buffer():
-				log.Println("监听状态")
 				if err := h.match(message); err != nil {
 					break
 				}

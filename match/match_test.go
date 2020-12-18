@@ -33,7 +33,7 @@ func TestRun(t *testing.T) {
 	matchup.Bid(b)
 	go matchup.Run()
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1000; i++ {
 		traceType := b.Buy()
 		if i%2 != 0 {
 			traceType = b.Sell()
@@ -61,5 +61,5 @@ func TestRun(t *testing.T) {
 
 	t.Log("End")
 	t.Run("TestBuffer", TestBuffer)
-	<-time.After(10 * time.Second)
+	<-time.After(1 * time.Second)
 }
