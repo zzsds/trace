@@ -84,8 +84,8 @@ func (s *Trade) start() error {
 		}
 	}
 
-	for _, v := range s.match {
-		go v.Run()
+	for _, m := range s.match {
+		go m.Run()
 	}
 
 	for _, fn := range s.opts.AfterStart {

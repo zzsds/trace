@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/zzsds/trade"
@@ -19,16 +20,17 @@ func main() {
 	t := trade.Newtrade(func(o *trade.Options) {
 		o.Name = "New Product"
 	})
-	m := match.NewMatch(match.Name("goods")).Bid(bid.NewBid(bid.Name("test")))
-	go func() {
-		time.Sleep(2 * time.Second)
-		m.Suspend()
-		time.Sleep(2 * time.Second)
-		m.Resume()
-	}()
+	m := match.NewMatch(match.Name("goods")).Register(bid.NewBid(bid.Name("test")))
 
 	t.Add(m)
-	t.Run()
+	go t.Run()
+	go func() {
+		for {
+			select {
+			case <-m.Buffer():
+			}
+		}
+	}()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		// 输出到STDOUT展示处理已经开始
@@ -45,8 +47,57 @@ func main() {
 			fmt.Fprint(os.Stderr, "request cancelled\n")
 		}
 	})
-	http.HandleFunc("/hello", func(rw http.ResponseWriter, r *http.Request) {
-		rw.Write([]byte("hello request"))
+	http.HandleFunc("/start", func(rw http.ResponseWriter, r *http.Request) {
+		m, err := t.Load(m.Name())
+		if err != nil {
+			os.Exit(0)
+		}
+
+		fmt.Println(m.Start(), m.State(), m.Name())
+		rw.Write([]byte("start request"))
+	})
+	http.HandleFunc("/stop", func(rw http.ResponseWriter, r *http.Request) {
+		m, err := t.Load(m.Name())
+		if err != nil {
+			os.Exit(0)
+		}
+
+		fmt.Println(m.Stop(), m.State(), m.Name())
+		rw.Write([]byte("stop request"))
+	})
+	http.HandleFunc("/print", func(rw http.ResponseWriter, r *http.Request) {
+		m, err := t.Load(m.Name())
+		if err != nil {
+			os.Exit(0)
+		}
+
+		fmt.Println(m.State(), m.Name())
+		for n := m.Bid().Buy().Front(); n != nil; n = n.Next() {
+			fmt.Println(n.Data().Content)
+		}
+		rw.Write([]byte("print request"))
+	})
+	http.HandleFunc("/add", func(rw http.ResponseWriter, r *http.Request) {
+		m, err := t.Load(m.Name())
+		if err != nil {
+			os.Exit(0)
+		}
+		b := m.Bid()
+		for i := 0; i < 1000; i++ {
+			traceType := b.Buy()
+			if i%2 != 0 {
+				traceType = b.Sell()
+			}
+			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
+			b.Add(traceType, &bid.Unit{
+				Name:   "xlj",
+				Amount: i + 1,
+				Price:  price,
+				UID:    int(i),
+				ID:     int(i),
+			})
+		}
+		rw.Write([]byte("add request"))
 	})
 	// 创建一个监听8000端口的服务器
 	http.ListenAndServe(":8000", nil)

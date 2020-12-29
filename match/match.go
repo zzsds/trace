@@ -1,6 +1,8 @@
 package match
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -12,9 +14,9 @@ import (
 type Server interface {
 	Init() Server
 	Name() string
-	Bid(bid.Server) Server
-	Suspend() error
-	Resume() error
+	Register(bid.Server) Server
+	Bid() bid.Server
+	State() bool
 	Start() error
 	Stop() error
 	// Run 启动
@@ -45,10 +47,15 @@ func NewMatch(opts ...Option) Server {
 	return m
 }
 
-// Bid ...
-func (h *Match) Bid(p bid.Server) Server {
+// Register ...
+func (h *Match) Register(p bid.Server) Server {
 	h.bid = p
 	return h
+}
+
+// Bid ...
+func (h *Match) Bid() bid.Server {
+	return h.bid
 }
 
 // Init 初始化队列
@@ -61,27 +68,26 @@ func (h *Match) Name() string {
 	return h.opts.name
 }
 
-// Suspend 暂停
-func (h *Match) Suspend() error {
-	log.Printf("%s 暂停撮合, 暂未开放", h.Name())
-	return nil
-}
-
-// Resume 恢复
-func (h *Match) Resume() error {
-	log.Printf("%s 恢复撮合, 暂未开放", h.Name())
-	return nil
+// State State
+func (h *Match) State() bool {
+	return h.opts.state
 }
 
 // Start ...
 func (h *Match) Start() error {
-	log.Printf("%s 撮合开始", h.Name())
-	return h.listen()
+	var ctx context.Context
+	ctx, h.opts.cancel = context.WithCancel(h.opts.ctx)
+	h.opts.state = true
+	return h.handle(ctx)
 }
 
 // Stop ...
 func (h *Match) Stop() error {
-	log.Printf("%s 撮合停止，暂未开放", h.Name())
+	if h.opts.cancel == nil {
+		return fmt.Errorf("cancel undefind")
+	}
+	h.opts.state = false
+	h.opts.cancel()
 	return nil
 }
 
@@ -90,24 +96,32 @@ func (h *Match) Buffer() <-chan Result {
 	return h.opts.buffer
 }
 
-// listen 监听委托队列执行撮合交易
-func (h *Match) listen() error {
+// handle 处理委托队列执行撮合交易
+func (h *Match) handle(ctx context.Context) error {
 	go func() {
 		for {
 			select {
+			case <-ctx.Done():
+				fmt.Println("退出协程")
+				h.opts.state = false
+				return
 			case message := <-h.bid.Buffer():
-				if err := h.match(message); err != nil {
+				if err := h.match(ctx, message); err != nil {
 					break
 				}
 			}
 		}
 	}()
-	return nil
+
+	return ctx.Err()
 }
 
 // 撮合买卖委托交易
-func (h *Match) match(message bid.Message) error {
+func (h *Match) match(ctx context.Context, message bid.Message) error {
 	node := message.Node
+	if node == nil {
+		fmt.Println("停止")
+	}
 	currentUnit := bid.NewUnit()
 	if err := node.Data().ParseContent(currentUnit); err != nil {
 		return err
@@ -165,7 +179,6 @@ func (h *Match) match(message bid.Message) error {
 			}
 		}
 	}
-
 	// 扣减当前交易结果
 	if result.Amount < result.Trigger.Unit.Amount {
 		node.Data().UpdateContent(currentUnit)

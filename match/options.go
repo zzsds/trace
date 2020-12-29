@@ -8,6 +8,9 @@ import (
 // options ...
 type options struct {
 	ctx    context.Context
+	cancel context.CancelFunc
+	exit   chan bool
+	state  bool
 	mutex  *sync.RWMutex
 	name   string
 	buffer chan Result
@@ -18,11 +21,10 @@ type options struct {
 type Option func(*options)
 
 func newOptions(opts ...Option) options {
-	ch := make(chan Result, 100)
 	opt := options{
 		ctx:    context.Background(),
 		mutex:  &sync.RWMutex{},
-		buffer: ch,
+		buffer: make(chan Result, 100),
 		signal: true,
 	}
 	for _, o := range opts {
@@ -35,5 +37,12 @@ func newOptions(opts ...Option) options {
 func Name(name string) Option {
 	return func(o *options) {
 		o.name = name
+	}
+}
+
+// WithContext ...
+func WithContext(ctx context.Context) Option {
+	return func(o *options) {
+		o.ctx = ctx
 	}
 }

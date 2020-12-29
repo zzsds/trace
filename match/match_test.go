@@ -30,7 +30,7 @@ func TestBuffer(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	b := bid.NewBid(bid.Name("product"))
-	matchup.Bid(b)
+	matchup.Register(b)
 	go matchup.Run()
 
 	for i := 0; i < 1000; i++ {
@@ -52,12 +52,12 @@ func TestRun(t *testing.T) {
 	t.Log("截断")
 	<-time.After(1 * time.Second)
 
-	for _, v := range b.Buy().List() {
-		t.Logf("Buy %#v", v.Content)
-	}
-	for _, v := range b.Sell().List() {
-		t.Logf("Sell %#v", v.Content)
-	}
+	// for _, v := range b.Buy().List() {
+	// 	t.Logf("Buy %#v", v.Content)
+	// }
+	// for _, v := range b.Sell().List() {
+	// 	t.Logf("Sell %#v", v.Content)
+	// }
 
 	t.Log("End")
 	t.Run("TestBuffer", TestBuffer)
