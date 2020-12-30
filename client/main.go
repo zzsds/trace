@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -35,7 +34,7 @@ func main() {
 		for {
 			select {
 			case msg := <-m.Buffer():
-				log.Println(msg)
+				fmt.Println(msg.Amount)
 			}
 		}
 	}()
