@@ -21,7 +21,7 @@ func TestBuffer(t *testing.T) {
 		for {
 			select {
 			case result := <-matchup.Buffer():
-				t.Logf("%s, %s, %#v, %#v", result.Bid.Name(), result.Trigger.String(), result.Trigger.Unit, result.Trades)
+				t.Logf("%s, %#v, %#v", result.Bid.Name(), result.Trigger, result.Trades)
 			}
 		}
 
@@ -29,37 +29,38 @@ func TestBuffer(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	b := bid.NewBid(bid.Name("product"))
-	matchup.Register(b)
-	go matchup.Run()
+	m := matchup.Register(bid.NewBid(bid.Name("product")))
+	go m.Run()
+	b := m.Bid()
+	go func() {
+		for i := 0; i < 2000; i++ {
 
-	for i := 0; i < 1000; i++ {
-		traceType := b.Buy()
-		if i%2 != 0 {
-			traceType = b.Sell()
+			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
+			traceType := bid.Type_Buy
+			if i%2 != 0 {
+				traceType = bid.Type_Sell
+			}
+
+			data, _ := b.Add(bid.NewUnit(func(u *bid.Unit) {
+				u.Name = "xlj"
+				u.Amount = i + 1
+				u.Price = price
+				u.ID = int(i)
+			}))
+			t.Log(traceType.String(), data)
 		}
-		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
-		data, _ := b.Add(traceType, &bid.Unit{
-			Name:   "xlj",
-			Amount: i + 1,
-			Price:  price,
-			UID:    int(i),
-			ID:     int(i),
-		})
-		t.Log(traceType.Name(), data.Content)
-	}
+	}()
 
 	t.Log("截断")
-	<-time.After(1 * time.Second)
 
 	// for _, v := range b.Buy().List() {
-	// 	t.Logf("Buy %#v", v.Content)
+	// 	t.Logf("Buy %#v", v.Value)
 	// }
 	// for _, v := range b.Sell().List() {
-	// 	t.Logf("Sell %#v", v.Content)
+	// 	t.Logf("Sell %#v", v.Value)
 	// }
 
-	t.Log("End")
 	t.Run("TestBuffer", TestBuffer)
-	<-time.After(1 * time.Second)
+	t.Log("End")
+	<-time.After(5 * time.Second)
 }

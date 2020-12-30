@@ -19,7 +19,7 @@ func TestBuffer(t *testing.T) {
 		for {
 			select {
 			case message := <-bid.Buffer():
-				t.Log(message.Queue.Name(), message.Node.Data().Content)
+				t.Log(message.Queue.Name(), message.Node.Value)
 			}
 		}
 	}()
@@ -31,26 +31,28 @@ func TestAdd(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 
-		traceType := bid.Buy()
+		traceType := Type_Buy
 		if i%2 != 0 {
-			traceType = bid.Sell()
+			traceType = Type_Sell
 		}
-		bid.Add(traceType, &Unit{
-			Name:   "xlj-" + strconv.Itoa(i),
-			Price:  price / 3.5,
-			Amount: i,
-			UID:    i,
-			ID:     i,
+
+		bid.Add(&Unit{
+			Type:     traceType,
+			CreateAt: time.Now(),
+			Name:     "xlj-" + strconv.Itoa(i),
+			Price:    price / 3.5,
+			Amount:   i,
+			ID:       i,
 		})
 	}
 
 	for n := bid.Buy().Front(); n != nil; n = n.Next() {
-		t.Log(n.Data().Content)
+		t.Log(n.Value)
 	}
 	t.Logf("buy length %d", bid.Buy().Len())
 
 	for n := bid.Sell().Front(); n != nil; n = n.Next() {
-		t.Log(n.Data().Content)
+		t.Log(n.Value)
 	}
 	t.Logf("sell length %d", bid.Sell().Len())
 
@@ -59,20 +61,48 @@ func TestAdd(t *testing.T) {
 
 func BenchmarkAdd(t *testing.B) {
 	for i := 0; i < t.N; i++ {
-		traceType := bid.Buy()
-		if i%2 != 0 {
-			traceType = bid.Sell()
-		}
 
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
-		bid.Add(traceType, &Unit{
-			Name:   "xlj",
-			Amount: int(rand.Intn(1000)),
-			Price:  price / 3.5,
-			UID:    int(i),
-			ID:     int(i),
+		traceType := Type_Buy
+		if i%2 != 0 {
+			traceType = Type_Sell
+		}
+		bid.Add(&Unit{
+			Type:     traceType,
+			CreateAt: time.Now(),
+			Name:     "xlj",
+			Amount:   int(rand.Intn(1000)),
+			Price:    price / 3.5,
+			ID:       int(i),
 		})
 	}
+
+	go func() {
+		for {
+			select {
+			case <-bid.Buffer():
+			}
+		}
+	}()
+	t.Log(t.N, bid.Buy().Len(), bid.Sell().Len())
+}
+
+func BenchmarkAddBid(t *testing.B) {
+	t.ReportAllocs()
+	t.RunParallel(func(p *testing.PB) {
+		// Each goroutine has its own bytes.Buffer.
+		for p.Next() {
+			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
+			bid.Add(&Unit{
+				Type:     Type_Buy,
+				CreateAt: time.Now(),
+				Name:     "xlj",
+				Amount:   int(rand.Intn(1000)),
+				Price:    price / 3.5,
+				ID:       int(rand.Intn(12321)),
+			})
+		}
+	})
 
 	go func() {
 		for {

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -12,25 +14,32 @@ import (
 	"github.com/zzsds/trade"
 	"github.com/zzsds/trade/bid"
 	"github.com/zzsds/trade/match"
-	"github.com/zzsds/trade/queue"
 )
+
+var t trade.Server
 
 //go:generate go version
 func main() {
-	t := trade.Newtrade(func(o *trade.Options) {
+	t = trade.Newtrade(func(o *trade.Options) {
 		o.Name = "New Product"
 	})
-	m := match.NewMatch(match.Name("goods")).Register(bid.NewBid(bid.Name("test")))
-
-	t.Add(m)
+	m := match.NewMatch(match.Name("goods")).Register(bid.NewBid(bid.Name("USDT-BTC")))
+	t.Register(m)
 	go t.Run()
+
 	go func() {
+		m, err := t.Load(m.Name())
+		if err != nil {
+			os.Exit(0)
+		}
 		for {
 			select {
-			case <-m.Buffer():
+			case msg := <-m.Buffer():
+				log.Println(msg)
 			}
 		}
 	}()
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		// 输出到STDOUT展示处理已经开始
@@ -72,83 +81,36 @@ func main() {
 		}
 
 		fmt.Println(m.State(), m.Name())
+		var buf bytes.Buffer
 		for n := m.Bid().Buy().Front(); n != nil; n = n.Next() {
-			fmt.Println(n.Data().Content)
+			b, _ := json.Marshal(n.Value)
+
+			buf.Write(b)
 		}
-		rw.Write([]byte("print request"))
+		rw.Write(buf.Bytes())
 	})
 	http.HandleFunc("/add", func(rw http.ResponseWriter, r *http.Request) {
 		m, err := t.Load(m.Name())
 		if err != nil {
 			os.Exit(0)
 		}
-		b := m.Bid()
 		for i := 0; i < 1000; i++ {
-			traceType := b.Buy()
-			if i%2 != 0 {
-				traceType = b.Sell()
-			}
 			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
-			b.Add(traceType, &bid.Unit{
-				Name:   "xlj",
-				Amount: i + 1,
-				Price:  price,
-				UID:    int(i),
-				ID:     int(i),
-			})
+			traceType := bid.Type_Buy
+			if i%2 != 0 {
+				traceType = bid.Type_Sell
+			}
+			data, _ := m.Bid().Add(bid.NewUnit(func(u *bid.Unit) {
+				u.Type = traceType
+				u.Name = "xlj"
+				u.Amount = i + 1
+				u.Price = price
+				u.ID = int(i)
+			}))
+			_ = data.Amount
 		}
 		rw.Write([]byte("add request"))
 	})
 	// 创建一个监听8000端口的服务器
 	http.ListenAndServe(":8000", nil)
-}
-
-func queueTest() {
-	que := queue.NewQueue(queue.Name("Buy"))
-	log.Println(que.Name(), que.Len())
-
-	que.Listen(func(n *queue.Node) error {
-		if n.Data().ExpireAt == nil {
-			que.WriteBuffer(*n.Data())
-			que.Remove(n)
-		} else if n.Data().ExpireAt.Before(time.Now()) {
-			n.Data().ExpireAt = nil
-		}
-		return nil
-	})
-
-	go func() {
-		for {
-			select {
-			case buff := <-que.Buffer():
-				log.Println(buff, "出")
-			}
-		}
-	}()
-
-	rand.Seed(time.Now().Unix())
-	data := queue.NewExpireData(&bid.Unit{
-		Name:   "qwe",
-		Amount: int(rand.Intn(1000)),
-		Price:  1.0,
-		UID:    0,
-		ID:     0,
-	}, time.Now().Add(3*time.Second))
-	que.Push(data)
-
-	time.Sleep(5 * time.Second)
-	data = queue.NewData(&bid.Unit{
-		Name:   "xlj",
-		Amount: int(rand.Intn(1000)),
-		Price:  1.0,
-		UID:    0,
-		ID:     0,
-	})
-	que.Unshift(data)
-
-	time.Sleep(2 * time.Second)
-	fmt.Println("End")
-	for k, v := range que.List() {
-		log.Println(k, v.Content, "list")
-	}
 }

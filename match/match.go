@@ -29,8 +29,8 @@ type Result struct {
 	Bid     bid.Server
 	Amount  int
 	Price   float64
-	Trigger bid.UnitType
-	Trades  []bid.UnitType
+	Trigger bid.Unit
+	Trades  []bid.Unit
 }
 
 // Match Match
@@ -106,7 +106,7 @@ func (h *Match) handle(ctx context.Context) error {
 				h.opts.state = false
 				return
 			case message := <-h.bid.Buffer():
-				if err := h.match(ctx, message); err != nil {
+				if err := h.match(ctx, &message); err != nil {
 					break
 				}
 			}
@@ -117,54 +117,43 @@ func (h *Match) handle(ctx context.Context) error {
 }
 
 // 撮合买卖委托交易
-func (h *Match) match(ctx context.Context, message bid.Message) error {
+func (h *Match) match(ctx context.Context, message *bid.Message) error {
 	node := message.Node
 	if node == nil {
-		fmt.Println("停止")
+		fmt.Println(message)
+		return nil
 	}
-	currentUnit := bid.NewUnit()
-	if err := node.Data().ParseContent(currentUnit); err != nil {
-		return err
-	}
-	result := Result{Bid: h.bid, Trigger: bid.UnitType{Type: bid.Type_Buy, Unit: *currentUnit}}
-	unitType := bid.UnitType{Type: bid.Type_Sell}
-
+	currentUnit := node.Value.(*bid.Unit)
+	result := Result{Bid: h.bid, Trigger: *currentUnit}
 	current, object := h.bid.Buy(), h.bid.Sell()
 	if message.Queue == h.bid.Sell() {
 		current, object = h.bid.Sell(), h.bid.Buy()
-		// 指定当前交易类型
-		result.Trigger.Type = bid.Type_Sell
-		// 反向指定交易对象
-		object = h.bid.Buy()
-		// 反向指定交易对象类型
-		unitType.Type = bid.Type_Buy
 	}
 
 	for n := object.Front(); n != nil && currentUnit.Amount > result.Amount; n = n.Next() {
-		objectUnit, ok := n.Data().Content.(*bid.Unit)
+		objectUnit, ok := n.Value.(*bid.Unit)
 		if !ok {
 			break
 		}
-		current.Remove(node.Current())
-		unitType.Unit = *objectUnit
+
 		if currentUnit.Price >= objectUnit.Price {
 			// 数量相等 全部匹配
 			if currentUnit.Amount == objectUnit.Amount {
-				current.Remove(node.Current())
+				current.Remove(node)
 				object.Remove(n)
 				// 加入到撮合成功数量中
 				result.Amount += objectUnit.Amount
-				result.Trades = append(result.Trades, unitType)
+				result.Trades = append(result.Trades, *objectUnit)
 				break
 			}
 
 			if currentUnit.Amount < objectUnit.Amount {
-				current.Remove(node.Current())
+				current.Remove(node)
 				objectUnit.Amount -= currentUnit.Amount
-				n.Data().UpdateContent(objectUnit)
+				n.Value = objectUnit
 				// 加入到撮合成功数量中
 				result.Amount += currentUnit.Amount
-				result.Trades = append(result.Trades, unitType)
+				result.Trades = append(result.Trades, *objectUnit)
 				break
 			}
 
@@ -174,14 +163,14 @@ func (h *Match) match(ctx context.Context, message bid.Message) error {
 				result.Amount += objectUnit.Amount
 				// 减去购买数量
 				currentUnit.Amount -= objectUnit.Amount
-				result.Trades = append(result.Trades, unitType)
+				result.Trades = append(result.Trades, *objectUnit)
 				continue
 			}
 		}
 	}
 	// 扣减当前交易结果
-	if result.Amount < result.Trigger.Unit.Amount {
-		node.Data().UpdateContent(currentUnit)
+	if result.Amount < result.Trigger.Amount {
+		node.Value = currentUnit
 	}
 	// 成交后进行缓冲推送
 	if result.Amount > 0 {

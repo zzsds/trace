@@ -20,7 +20,7 @@ type Server interface {
 	Name() string
 	Version() string
 	String() string
-	Add(match.Server) Server
+	Register(match.Server) Server
 	Load(string) (match.Server, error)
 	Run() error
 }
@@ -67,8 +67,8 @@ func (s *Trade) Load(name string) (match.Server, error) {
 	return m, nil
 }
 
-// Add ...
-func (s *Trade) Add(match match.Server) Server {
+// Register ...
+func (s *Trade) Register(match match.Server) Server {
 	if _, ok := s.match[match.Name()]; !ok {
 		s.match[match.Name()] = match
 		go s.match[match.Name()].Run()

@@ -14,34 +14,14 @@ type Server interface {
 	Buy() queue.Server
 	Sell() queue.Server
 	Cancel(queue.Server, int) error
-	Add(queue.Server, *Unit) (queue.Data, error)
+	Add(*Unit) (Unit, error)
 	Buffer() <-chan Message
 }
 
 // Message 缓冲消息
 type Message struct {
 	Queue queue.Server
-	Node  queue.NodeServer
-}
-
-// UnitType ...
-type UnitType struct {
-	Type
-	Unit
-}
-
-// Unit ...
-type Unit struct {
-	ID     int
-	UID    int
-	Name   string
-	Price  float64
-	Amount int
-}
-
-// NewUnit ...
-func NewUnit() *Unit {
-	return new(Unit)
+	*queue.Node
 }
 
 var bids = make(map[int]Server)
@@ -112,24 +92,27 @@ func (h *Bid) Amount() int {
 }
 
 // Add ...
-func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
+func (h *Bid) Add(u *Unit) (Unit, error) {
+	q := h.buy
+	if u.Type == Type_Sell {
+		q = h.sell
+	}
 	message := Message{Queue: q}
-	data := queue.NewData(u)
 	for n := q.Front(); ; n = n.Next() {
 		if n == nil {
-			message.Node = q.Push(data)
+			message.Node = q.PushBack(u)
 			break
 		}
-		content := n.Data().Content.(*Unit)
-		if content.Price == u.Price {
-			if content.UID == u.UID {
-				content.Amount += u.Amount
-				n.Data().UpdateContent(content)
+		v := n.Value.(*Unit)
+		if v.Price == u.Price {
+			if v.UID == u.UID {
+				v.Amount += u.Amount
+				n.Value = v
 				message.Node = n
 				break
 			}
-			if n.Data().CreateAt.After(data.CreateAt) {
-				message.Node = q.InsertBefore(data, n)
+			if v.CreateAt.After(u.CreateAt) {
+				message.Node = q.InsertBefore(u, n)
 				break
 			}
 		}
@@ -137,28 +120,27 @@ func (h *Bid) Add(q queue.Server, u *Unit) (queue.Data, error) {
 		//如果是买家队列，按照价格高优先，时间优先
 		if h.buy == q {
 			//价格高者优先
-			if u.Price > content.Price {
-				message.Node = q.InsertBefore(data, n)
+			if u.Price > v.Price {
+				message.Node = q.InsertBefore(u, n)
 				break
 			}
 		} else if h.sell == q {
 			//价格高者优先
-			if content.Price > u.Price {
-				message.Node = q.InsertBefore(data, n)
+			if v.Price > u.Price {
+				message.Node = q.InsertBefore(u, n)
 				break
 			}
 		}
 	}
 	h.opts.amount++
 	h.opts.buffer <- message
-	return *data, nil
+	return *u, nil
 }
 
 // Cancel ...
 func (h *Bid) Cancel(q queue.Server, ID int) error {
 	q.Loop(func(n *queue.Node) error {
-		content := n.Data().Content
-		if content != nil && content.(*Unit).ID == ID {
+		if n != nil && n.Value.(*Unit).ID == ID {
 			q.Remove(n)
 		}
 		return nil
