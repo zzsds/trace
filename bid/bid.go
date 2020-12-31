@@ -93,45 +93,52 @@ func (h *Bid) Amount() int {
 
 // Add ...
 func (h *Bid) Add(u *Unit) (Unit, error) {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
 	q := h.buy
 	if u.Type == Type_Sell {
 		q = h.sell
 	}
-	message := Message{Queue: q}
-	for n := q.Front(); ; n = n.Next() {
-		if n == nil {
-			message.Node = q.PushBack(u)
-			break
-		}
-		v := n.Value.(*Unit)
-		if v.Price == u.Price {
-			if v.UID == u.UID {
-				v.Amount += u.Amount
-				n.Value = v
-				message.Node = n
-				break
-			}
-			if v.CreateAt.After(u.CreateAt) {
-				message.Node = q.InsertBefore(u, n)
-				break
-			}
-		}
 
-		//如果是买家队列，按照价格高优先，时间优先
-		if h.buy == q {
-			//价格高者优先
-			if u.Price > v.Price {
-				message.Node = q.InsertBefore(u, n)
+	message := Message{Queue: q}
+	if q.Len() == 0 {
+		message.Node = q.PushFront(u)
+	} else {
+		for n := q.Front(); n != nil; n = n.Next() {
+			v, ok := n.Value.(*Unit)
+			if !ok {
 				break
 			}
-		} else if h.sell == q {
-			//价格高者优先
-			if v.Price > u.Price {
-				message.Node = q.InsertBefore(u, n)
-				break
+			if v.Price == u.Price {
+				if v.UID == u.UID {
+					v.Amount += u.Amount
+					n.Value = v
+					message.Node = n
+					break
+				}
+				if v.CreateAt.After(u.CreateAt) {
+					message.Node = q.InsertBefore(u, n)
+					break
+				}
+			}
+
+			//如果是买家队列，按照价格高优先，时间优先
+			if h.buy == q {
+				//价格高者优先
+				if u.Price > v.Price {
+					message.Node = q.InsertBefore(u, n)
+					break
+				}
+			} else if h.sell == q {
+				//价格高者优先
+				if v.Price > u.Price {
+					message.Node = q.InsertBefore(u, n)
+					break
+				}
 			}
 		}
 	}
+
 	h.opts.amount++
 	h.opts.buffer <- message
 	return *u, nil

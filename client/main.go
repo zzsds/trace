@@ -34,7 +34,8 @@ func main() {
 		for {
 			select {
 			case msg := <-m.Buffer():
-				fmt.Println(msg.Amount)
+				_ = msg.Amount
+				// log.Println(msg)
 			}
 		}
 	}()
@@ -81,10 +82,18 @@ func main() {
 
 		fmt.Println(m.State(), m.Name())
 		var buf bytes.Buffer
+		buf.WriteString("\n\t")
 		for n := m.Bid().Buy().Front(); n != nil; n = n.Next() {
 			b, _ := json.Marshal(n.Value)
 
 			buf.Write(b)
+			buf.WriteString("\n\t")
+		}
+		for n := m.Bid().Sell().Front(); n != nil; n = n.Next() {
+			b, _ := json.Marshal(n.Value)
+
+			buf.Write(b)
+			buf.WriteString("\n\t")
 		}
 		rw.Write(buf.Bytes())
 	})
@@ -93,21 +102,23 @@ func main() {
 		if err != nil {
 			os.Exit(0)
 		}
-		for i := 0; i < 1000; i++ {
-			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
-			traceType := bid.Type_Buy
-			if i%2 != 0 {
-				traceType = bid.Type_Sell
+		go func() {
+			for i := 1; i < 10000000; i++ {
+				price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
+				traceType := bid.Type_Buy
+				if i%2 != 0 {
+					traceType = bid.Type_Sell
+				}
+				m.Bid().Add(bid.NewUnit(func(u *bid.Unit) {
+					u.Type = traceType
+					u.Name = "xlj"
+					u.Amount = rand.Intn(1000)
+					u.Price = price
+					u.UID = rand.Intn(1000)
+					u.ID = int(i)
+				}))
 			}
-			data, _ := m.Bid().Add(bid.NewUnit(func(u *bid.Unit) {
-				u.Type = traceType
-				u.Name = "xlj"
-				u.Amount = i + 1
-				u.Price = price
-				u.ID = int(i)
-			}))
-			_ = data.Amount
-		}
+		}()
 		rw.Write([]byte("add request"))
 	})
 	// 创建一个监听8000端口的服务器

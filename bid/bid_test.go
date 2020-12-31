@@ -19,7 +19,8 @@ func TestBuffer(t *testing.T) {
 		for {
 			select {
 			case message := <-bid.Buffer():
-				t.Log(message.Queue.Name(), message.Node.Value)
+				_ = message
+				// t.Log(message.Queue.Name(), message.Node.Value)
 			}
 		}
 	}()
@@ -28,7 +29,7 @@ func TestBuffer(t *testing.T) {
 func TestAdd(t *testing.T) {
 	t.Run("TestBuffer", TestBuffer)
 	rand.Seed(time.Now().Unix())
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10000; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 
 		traceType := Type_Buy
@@ -46,22 +47,29 @@ func TestAdd(t *testing.T) {
 		})
 	}
 
-	for n := bid.Buy().Front(); n != nil; n = n.Next() {
-		t.Log(n.Value)
-	}
-	t.Logf("buy length %d", bid.Buy().Len())
+	// for n := bid.Buy().Front(); n != nil; n = n.Next() {
+	// 	t.Log(n.Value)
+	// }
+	// t.Logf("buy length %d", bid.Buy().Len())
 
-	for n := bid.Sell().Front(); n != nil; n = n.Next() {
-		t.Log(n.Value)
-	}
-	t.Logf("sell length %d", bid.Sell().Len())
+	// for n := bid.Sell().Front(); n != nil; n = n.Next() {
+	// 	t.Log(n.Value)
+	// }
+	// t.Logf("sell length %d", bid.Sell().Len())
 
 	<-time.After(1 * time.Millisecond)
 }
 
 func BenchmarkAdd(t *testing.B) {
+	go func() {
+		for {
+			select {
+			case msg := <-bid.Buffer():
+				_ = msg
+			}
+		}
+	}()
 	for i := 0; i < t.N; i++ {
-
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 		traceType := Type_Buy
 		if i%2 != 0 {
@@ -73,43 +81,42 @@ func BenchmarkAdd(t *testing.B) {
 			Name:     "xlj",
 			Amount:   int(rand.Intn(1000)),
 			Price:    price / 3.5,
-			ID:       int(i),
+			UID:      int(i),
 		})
 	}
 
-	go func() {
-		for {
-			select {
-			case <-bid.Buffer():
-			}
-		}
-	}()
 	t.Log(t.N, bid.Buy().Len(), bid.Sell().Len())
 }
 
 func BenchmarkAddBid(t *testing.B) {
+	go func() {
+		for {
+			select {
+			case msg := <-bid.Buffer():
+				_ = msg
+			}
+		}
+	}()
 	t.ReportAllocs()
 	t.RunParallel(func(p *testing.PB) {
 		// Each goroutine has its own bytes.Buffer.
 		for p.Next() {
 			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
+			traceType := Type_Buy
+			if rand.Intn(100)%2 == 0 {
+				traceType = Type_Sell
+			}
 			bid.Add(&Unit{
-				Type:     Type_Buy,
+				Type:     traceType,
 				CreateAt: time.Now(),
 				Name:     "xlj",
 				Amount:   int(rand.Intn(1000)),
 				Price:    price / 3.5,
 				ID:       int(rand.Intn(12321)),
+				UID:      rand.Intn(100),
 			})
 		}
 	})
 
-	go func() {
-		for {
-			select {
-			case <-bid.Buffer():
-			}
-		}
-	}()
 	t.Log(t.N, bid.Buy().Len(), bid.Sell().Len())
 }

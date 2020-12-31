@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 
 	"github.com/zzsds/trade/bid"
 )
@@ -76,6 +77,9 @@ func (h *Match) State() bool {
 // Start ...
 func (h *Match) Start() error {
 	var ctx context.Context
+	if h.opts.state {
+		return fmt.Errorf("Cannot start repeatedly")
+	}
 	ctx, h.opts.cancel = context.WithCancel(h.opts.ctx)
 	h.opts.state = true
 	return h.handle(ctx)
@@ -83,10 +87,9 @@ func (h *Match) Start() error {
 
 // Stop ...
 func (h *Match) Stop() error {
-	if h.opts.cancel == nil {
-		return fmt.Errorf("cancel undefind")
+	if !h.opts.state || h.opts.cancel == nil {
+		return fmt.Errorf("Cannot stop repeatedly")
 	}
-	h.opts.state = false
 	h.opts.cancel()
 	return nil
 }
@@ -98,15 +101,19 @@ func (h *Match) Buffer() <-chan Result {
 
 // handle 处理委托队列执行撮合交易
 func (h *Match) handle(ctx context.Context) error {
+	mutex := sync.RWMutex{}
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
-				fmt.Println("退出协程")
 				h.opts.state = false
+				log.Println("goroutine exit")
 				return
 			case message := <-h.bid.Buffer():
-				if err := h.match(ctx, &message); err != nil {
+				mutex.Lock()
+				err := h.match(ctx, &message)
+				mutex.Unlock()
+				if err != nil {
 					break
 				}
 			}
@@ -120,19 +127,30 @@ func (h *Match) handle(ctx context.Context) error {
 func (h *Match) match(ctx context.Context, message *bid.Message) error {
 	node := message.Node
 	if node == nil {
-		fmt.Println(message)
 		return nil
 	}
-	currentUnit := node.Value.(*bid.Unit)
+	currentUnit, ok := node.Value.(*bid.Unit)
+	if !ok {
+		return nil
+	}
+
 	result := Result{Bid: h.bid, Trigger: *currentUnit}
 	current, object := h.bid.Buy(), h.bid.Sell()
 	if message.Queue == h.bid.Sell() {
 		current, object = h.bid.Sell(), h.bid.Buy()
 	}
 
+	if object.Len() <= 0 {
+		return nil
+	}
+
 	for n := object.Front(); n != nil && currentUnit.Amount > result.Amount; n = n.Next() {
 		objectUnit, ok := n.Value.(*bid.Unit)
 		if !ok {
+			break
+		}
+		if objectUnit.Amount <= 0 {
+			object.Remove(n)
 			break
 		}
 
@@ -163,12 +181,13 @@ func (h *Match) match(ctx context.Context, message *bid.Message) error {
 				result.Amount += objectUnit.Amount
 				// 减去购买数量
 				currentUnit.Amount -= objectUnit.Amount
+				n.Value = currentUnit
 				result.Trades = append(result.Trades, *objectUnit)
 				continue
 			}
 		}
 	}
-	// 扣减当前交易结果
+	// 处理当前交易请求结果
 	if result.Amount < result.Trigger.Amount {
 		node.Value = currentUnit
 	}
@@ -181,6 +200,9 @@ func (h *Match) match(ctx context.Context, message *bid.Message) error {
 
 // Run ...
 func (h *Match) Run() error {
+	if h.opts.state {
+		return fmt.Errorf("runing")
+	}
 	// 开始撮合
 	if err := h.Start(); err != nil {
 		log.Fatalf("Run Match Fail：%v", err)
