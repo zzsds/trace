@@ -3,6 +3,7 @@ package bid
 import (
 	"math/rand"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -11,6 +12,7 @@ var bid Server
 
 func TestMain(t *testing.M) {
 	bid = NewBid(Name("Product"))
+
 	t.Run()
 }
 
@@ -86,6 +88,56 @@ func BenchmarkAdd(t *testing.B) {
 	}
 
 	t.Log(t.N, bid.Buy().Len(), bid.Sell().Len())
+}
+
+var (
+	once sync.Once
+	mu   *sync.RWMutex
+	i    float64
+)
+
+func BenchmarkAddParallel(t *testing.B) {
+	t.ReportAllocs()
+	// once.Do(func() {
+	// 	go func() {
+	// 		for {
+	// 			select {
+	// 			case message := <-bid.Buffer():
+	// 				_ = message
+	// 				// t.Log(message.Queue.Name(), message.Node.Value)
+	// 			}
+	// 		}
+	// 	}()
+	// })
+	t.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			// rand.Intn(1000)
+			// strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
+			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
+			bid.Add(&Unit{
+				Type:     Type_Buy,
+				CreateAt: time.Now(),
+				Name:     "xlj",
+				Amount:   int(rand.Intn(1000)),
+				Price:    price / 3.5,
+				UID:      rand.Intn(1000),
+			})
+		}
+	})
+	// t.RunParallel(func(p *testing.PB) {
+	// 	for p.Next() {
+	// 		strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
+	// 		// price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
+	// 		// bid.Add(&Unit{
+	// 		// 	Type:     Type_Sell,
+	// 		// 	CreateAt: time.Now(),
+	// 		// 	Name:     "wj",
+	// 		// 	Amount:   int(rand.Intn(1000)),
+	// 		// 	Price:    price / 3.5,
+	// 		// 	UID:      rand.Intn(1000),
+	// 		// })
+	// 	}
+	// })
 }
 
 func BenchmarkAddBid(t *testing.B) {

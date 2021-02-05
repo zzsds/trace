@@ -80,10 +80,12 @@ func TestQueuePrint(t *testing.T) {
 }
 
 func BenchmarkQueue(t *testing.B) {
-	t.Run("PushFront", BenchmarkPushFront)
-	t.Run("PushBack", BenchmarkPushBack)
+	t.ReportAllocs()
+	// t.Run("PushFront", BenchmarkPushFront)
+	// t.Run("PushBack", BenchmarkPushBack)
 	t.RunParallel(func(p *testing.PB) {
 		for p.Next() {
+			strconv.ParseFloat(strconv.Itoa(rand.Intn(10000000000)), 64)
 			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(10000000000)), 64)
 			que.PushFront(NewData(&Unit{
 				Name:   "xlj",

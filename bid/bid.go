@@ -101,6 +101,9 @@ func (h *Bid) Add(u *Unit) (Unit, error) {
 	}
 
 	message := Message{Queue: q}
+	message.Node = q.PushFront(u)
+	h.opts.amount++
+	return *u, nil
 	if q.Len() == 0 {
 		message.Node = q.PushFront(u)
 	} else {
@@ -138,9 +141,9 @@ func (h *Bid) Add(u *Unit) (Unit, error) {
 			}
 		}
 	}
-
 	h.opts.amount++
-	h.opts.buffer <- message
+	// h.opts.buffer <- message
+
 	return *u, nil
 }
 

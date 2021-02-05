@@ -320,9 +320,9 @@ func (l *Queue) PushFrontQueue(other *Queue) {
 }
 
 // Loop 单次循环
-func (l *Queue) Loop(call Call) error {
+func (l *Queue) Loop(f Call) error {
 	for node := l.Front(); node != nil; node = node.Next() {
-		if err := call(node); err != nil {
+		if err := f(node); err != nil {
 			break
 		}
 	}

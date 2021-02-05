@@ -103,7 +103,7 @@ func main() {
 			os.Exit(0)
 		}
 		go func() {
-			for i := 1; i < 10000000; i++ {
+			for i := 1; i < 1000; i++ {
 				price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
 				traceType := bid.Type_Buy
 				if i%2 != 0 {
