@@ -40,8 +40,8 @@ func Name(name string) Option {
 	}
 }
 
-// DefaultUnit ...
-type DefaultUnit func(*Unit)
+// OptionUnit ...
+type OptionUnit func(*Unit)
 
 // Unit ...
 type Unit struct {
@@ -56,7 +56,7 @@ type Unit struct {
 }
 
 // NewUnit ...
-func NewUnit(unit ...DefaultUnit) *Unit {
+func NewUnit(unit ...OptionUnit) *Unit {
 	uuid, _ := uuid.NewUUID()
 	u := &Unit{
 		CreateAt: time.Now(),

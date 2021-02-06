@@ -142,6 +142,8 @@ func (l *Queue) lazyInit() {
 
 // insert inserts e after at, increments l.len, and returns e.
 func (l *Queue) insert(e, at *Node) *Node {
+	l.opts.mutex.Lock()
+	defer l.opts.mutex.Unlock()
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Printf("%#v \n\t 换行", e)
@@ -166,6 +168,8 @@ func (l *Queue) insertValue(v interface{}, at *Node) *Node {
 
 // remove removes e from its list, decrements l.len, and returns e.
 func (l *Queue) remove(e *Node) *Node {
+	l.opts.mutex.Lock()
+	defer l.opts.mutex.Unlock()
 	e.prev.next = e.next
 	e.next.prev = e.prev
 	e.next = nil // avoid memory leaks
@@ -177,6 +181,8 @@ func (l *Queue) remove(e *Node) *Node {
 
 // move moves e to next to at and returns e.
 func (l *Queue) move(e, at *Node) *Node {
+	l.opts.mutex.Lock()
+	defer l.opts.mutex.Unlock()
 	if e == at {
 		return e
 	}
@@ -195,8 +201,6 @@ func (l *Queue) move(e, at *Node) *Node {
 // It returns the element value e.Value.
 // The element must not be nil.
 func (l *Queue) Remove(e *Node) interface{} {
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	if e.list == l {
 		// if e.list == l, l must have been initialized when e was inserted
 		// in l or l == nil (e is a zero Node) and l.remove will crash
@@ -207,16 +211,12 @@ func (l *Queue) Remove(e *Node) interface{} {
 
 // PushFront inserts a new element e with value v at the front of list l and returns e.
 func (l *Queue) PushFront(v interface{}) *Node {
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	l.lazyInit()
 	return l.insertValue(v, &l.root)
 }
 
 // PushBack inserts a new element e with value v at the back of list l and returns e.
 func (l *Queue) PushBack(v interface{}) *Node {
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	l.lazyInit()
 	return l.insertValue(v, l.root.prev)
 }
@@ -228,8 +228,6 @@ func (l *Queue) InsertBefore(v interface{}, mark *Node) *Node {
 	if mark.list != l {
 		return nil
 	}
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	// see comment in Queue.Remove about initialization of l
 	return l.insertValue(v, mark.prev)
 }
@@ -241,8 +239,6 @@ func (l *Queue) InsertAfter(v interface{}, mark *Node) *Node {
 	if mark.list != l {
 		return nil
 	}
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	// see comment in Queue.Remove about initialization of l
 	return l.insertValue(v, mark)
 }
@@ -254,8 +250,6 @@ func (l *Queue) MoveToFront(e *Node) {
 	if e.list != l || l.root.next == e {
 		return
 	}
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	// see comment in Queue.Remove about initialization of l
 	l.move(e, &l.root)
 }
@@ -267,8 +261,6 @@ func (l *Queue) MoveToBack(e *Node) {
 	if e.list != l || l.root.prev == e {
 		return
 	}
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	// see comment in Queue.Remove about initialization of l
 	l.move(e, l.root.prev)
 }
@@ -280,8 +272,6 @@ func (l *Queue) MoveBefore(e, mark *Node) {
 	if e.list != l || e == mark || mark.list != l {
 		return
 	}
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	l.move(e, mark.prev)
 }
 
@@ -292,16 +282,12 @@ func (l *Queue) MoveAfter(e, mark *Node) {
 	if e.list != l || e == mark || mark.list != l {
 		return
 	}
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	l.move(e, mark)
 }
 
 // PushBackQueue inserts a copy of another list at the back of list l.
 // The lists l and other may be the same. They must not be nil.
 func (l *Queue) PushBackQueue(other *Queue) {
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	l.lazyInit()
 	for i, e := other.Len(), other.Front(); i > 0; i, e = i-1, e.Next() {
 		l.insertValue(e.Value, l.root.prev)
@@ -311,8 +297,6 @@ func (l *Queue) PushBackQueue(other *Queue) {
 // PushFrontQueue inserts a copy of another list at the front of list l.
 // The lists l and other may be the same. They must not be nil.
 func (l *Queue) PushFrontQueue(other *Queue) {
-	l.opts.mutex.Lock()
-	defer l.opts.mutex.Unlock()
 	l.lazyInit()
 	for i, e := other.Len(), other.Back(); i > 0; i, e = i-1, e.Prev() {
 		l.insertValue(e.Value, &l.root)

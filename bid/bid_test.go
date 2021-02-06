@@ -1,6 +1,8 @@
 package bid
 
 import (
+	"bytes"
+	"html/template"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -31,7 +33,7 @@ func TestBuffer(t *testing.T) {
 func TestAdd(t *testing.T) {
 	t.Run("TestBuffer", TestBuffer)
 	rand.Seed(time.Now().Unix())
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 100; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 
 		traceType := Type_Buy
@@ -39,25 +41,25 @@ func TestAdd(t *testing.T) {
 			traceType = Type_Sell
 		}
 
-		bid.Add(&Unit{
-			Type:     traceType,
-			CreateAt: time.Now(),
-			Name:     "xlj-" + strconv.Itoa(i),
-			Price:    price / 3.5,
-			Amount:   i,
-			ID:       i,
+		unit := NewUnit(func(u *Unit) {
+			u.Type = traceType
+			u.Name = "xlj-" + strconv.Itoa(i)
+			u.Price = price
+			u.Amount = 1
+			u.UID = i
 		})
+		bid.Add(unit)
 	}
 
-	// for n := bid.Buy().Front(); n != nil; n = n.Next() {
-	// 	t.Log(n.Value)
-	// }
-	// t.Logf("buy length %d", bid.Buy().Len())
+	for n := bid.Buy().Front(); n != nil; n = n.Next() {
+		t.Logf("%#v", n.Value)
+	}
+	t.Logf("buy length %d", bid.Buy().Len())
 
-	// for n := bid.Sell().Front(); n != nil; n = n.Next() {
-	// 	t.Log(n.Value)
-	// }
-	// t.Logf("sell length %d", bid.Sell().Len())
+	for n := bid.Sell().Front(); n != nil; n = n.Next() {
+		t.Logf("%#v", n.Value)
+	}
+	t.Logf("sell length %d", bid.Sell().Len())
 
 	<-time.After(1 * time.Millisecond)
 }
@@ -124,20 +126,20 @@ func BenchmarkAddParallel(t *testing.B) {
 			})
 		}
 	})
-	// t.RunParallel(func(p *testing.PB) {
-	// 	for p.Next() {
-	// 		strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
-	// 		// price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
-	// 		// bid.Add(&Unit{
-	// 		// 	Type:     Type_Sell,
-	// 		// 	CreateAt: time.Now(),
-	// 		// 	Name:     "wj",
-	// 		// 	Amount:   int(rand.Intn(1000)),
-	// 		// 	Price:    price / 3.5,
-	// 		// 	UID:      rand.Intn(1000),
-	// 		// })
-	// 	}
-	// })
+	t.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
+			// price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
+			// bid.Add(&Unit{
+			// 	Type:     Type_Sell,
+			// 	CreateAt: time.Now(),
+			// 	Name:     "wj",
+			// 	Amount:   int(rand.Intn(1000)),
+			// 	Price:    price / 3.5,
+			// 	UID:      rand.Intn(1000),
+			// })
+		}
+	})
 }
 
 func BenchmarkAddBid(t *testing.B) {
@@ -171,4 +173,18 @@ func BenchmarkAddBid(t *testing.B) {
 	})
 
 	t.Log(t.N, bid.Buy().Len(), bid.Sell().Len())
+}
+
+func BenchmarkTmplExucte(b *testing.B) {
+	b.ReportAllocs()
+	templ := template.Must(template.New("test").Parse("Hello, {{.}}!"))
+	b.RunParallel(func(pb *testing.PB) {
+		// Each goroutine has its own bytes.Buffer.
+		var buf bytes.Buffer
+		for pb.Next() {
+			// The loop body is executed b.N times total across all goroutines.
+			buf.Reset()
+			templ.Execute(&buf, "World")
+		}
+	})
 }

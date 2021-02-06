@@ -7,3 +7,8 @@ enum Type {
 	Buy = 0;
 	Sell = 1;
 }
+
+enum Sort {
+	Asc = 0;
+	Desc = 1;
+}
