@@ -1,6 +1,7 @@
 package bid
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -14,8 +15,10 @@ type Server interface {
 	Init() Server
 	Buy() queue.Server
 	Sell() queue.Server
+	BuyData() *Data
+	SellData() *Data
 	Cancel(queue.Server, int) error
-	Add(*Unit) (Unit, error)
+	Add(*Unit) error
 	Buffer() <-chan Message
 }
 
@@ -50,6 +53,11 @@ func NewData(name string, sort Sort) *Data {
 		Array: make([]float64, 0, 100),
 	}
 }
+
+// Len ...
+func (d Data) Len() int           { return len(d.Array) }
+func (d Data) Swap(i, j int)      { d.Array[i], d.Array[j] = d.Array[j], d.Array[i] }
+func (d Data) Less(i, j int) bool { return d.Array[i] < d.Array[j] }
 
 // Register a bid
 func Register(id int, p Server) error {
@@ -105,13 +113,23 @@ func (h *Bid) Sell() queue.Server {
 	return h.sell.Queue
 }
 
+// BuyData ...
+func (h *Bid) BuyData() *Data {
+	return h.buy
+}
+
+// SellData ...
+func (h *Bid) SellData() *Data {
+	return h.sell
+}
+
 // Amount ...
 func (h *Bid) Amount() int {
 	return h.opts.amount
 }
 
 // Add ...
-func (h *Bid) Add(u *Unit) (Unit, error) {
+func (h *Bid) Add(u *Unit) error {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
 	t := h.buy
@@ -121,23 +139,38 @@ func (h *Bid) Add(u *Unit) (Unit, error) {
 
 	q := t.Queue
 	var newNode *queue.Node
+	defer func(n *queue.Node) {
+		if n == nil {
+			return
+		}
+		h.opts.buffer <- Message{
+			Queue: q,
+			Node:  n,
+		}
+	}(newNode)
 	if q.Len() <= 0 {
 		newNode = q.PushFront(u)
 		t.Map[u.Price] = newNode
 		t.Array = append(t.Array, u.Price)
-		return *u, nil
+		return nil
 	}
 
 	if n, ok := t.Map[u.Price]; ok {
 		v, ok := n.Value.(*Unit)
 		if !ok {
-			return Unit{}, nil
+			return errors.New("value type undefind")
 		}
-		if v.UID == u.UID {
-			v.Amount += u.Amount
-			n.Value = v
-			newNode = n
-			return *u, nil
+		for n := n; n != nil; n = n.Next() {
+			v = n.Value.(*Unit)
+			if v.Price != u.Price {
+				break
+			}
+			if v.UID == u.UID {
+				v.Amount += u.Amount
+				n.Value = v
+				newNode = n
+				return nil
+			}
 		}
 
 		if v.CreateAt.After(u.CreateAt) {
@@ -145,28 +178,53 @@ func (h *Bid) Add(u *Unit) (Unit, error) {
 		} else {
 			newNode = q.InsertAfter(u, n)
 		}
-		return *u, nil
+
+		return nil
 	}
 
 	for _, p := range t.Array {
-		//如果是买家队列，按照价格高优先，时间优先
-		if h.buy.Queue == q && u.Price > p {
-			//价格高者优先
-			newNode = q.InsertBefore(u, t.Map[p])
+		n, ok := t.Map[p]
+		if !ok || n == nil {
 			break
-		} else if h.sell.Queue == q && p > u.Price {
-			//价格高者优先
-			newNode = q.InsertBefore(u, t.Map[p])
-			break
+		}
+		// 买家队列，按照价格高优先，时间优先
+		if h.buy.Queue == q {
+			if u.Price > p {
+				//价格高者优先
+				newNode = q.InsertBefore(u, n)
+				break
+			}
+			continue
+		}
+
+		// 卖家队列，按照价格高优先，时间优先
+		if h.sell.Queue == q {
+			if p > u.Price {
+				//价格高者优先
+				newNode = q.InsertBefore(u, n)
+				break
+			}
+			continue
 		}
 	}
 
-	t.Array = append(t.Array, u.Price)
+	if newNode == nil {
+		return nil
+	}
+
+	if _, ok := t.Map[u.Price]; !ok {
+		t.Array = append(t.Array, u.Price)
+	}
 	t.Map[u.Price] = newNode
 	h.opts.amount++
 
-	sort.Float64Slice(t.Array).Sort()
-	return *u, nil
+	if h.buy.Queue == q {
+		sort.Sort(sort.Reverse(sort.Float64Slice(t.Array)))
+	} else {
+		sort.Float64Slice(t.Array).Sort()
+	}
+
+	return nil
 
 	message := Message{Queue: q}
 	if q.Len() == 0 {
@@ -208,7 +266,7 @@ func (h *Bid) Add(u *Unit) (Unit, error) {
 	h.opts.amount++
 	// h.opts.buffer <- message
 
-	return *u, nil
+	return nil
 }
 
 // Cancel ...
