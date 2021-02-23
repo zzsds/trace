@@ -73,14 +73,14 @@ func TestAdd(t *testing.T) {
 }
 
 func BenchmarkAdd(t *testing.B) {
-	// go func() {
-	// 	for {
-	// 		select {
-	// 		case msg := <-bid.Buffer():
-	// 			_ = msg
-	// 		}
-	// 	}
-	// }()
+	go func() {
+		for {
+			select {
+			case msg := <-bid.Buffer():
+				_ = msg
+			}
+		}
+	}()
 	for i := 0; i < t.N; i++ {
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 		traceType := Type_Buy
@@ -108,17 +108,17 @@ var (
 
 func BenchmarkAddParallel(t *testing.B) {
 	t.ReportAllocs()
-	// once.Do(func() {
-	// 	go func() {
-	// 		for {
-	// 			select {
-	// 			case message := <-bid.Buffer():
-	// 				_ = message
-	// 				// t.Log(message.Queue.Name(), message.Node.Value)
-	// 			}
-	// 		}
-	// 	}()
-	// })
+	once.Do(func() {
+		go func() {
+			for {
+				select {
+				case message := <-bid.Buffer():
+					_ = message
+					// t.Log(message.Queue.Name(), message.Node.Value)
+				}
+			}
+		}()
+	})
 	t.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			// rand.Intn(1000)
