@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"math/rand"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -35,7 +36,7 @@ func TestAdd(t *testing.T) {
 	t.Run("TestBuffer", TestBuffer)
 	rand.Seed(time.Now().Unix())
 	for i := 1; i < 200; i++ {
-		// price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
+		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 		// price, _ := strconv.ParseFloat(strconv.Itoa(i), 64)
 		traceType := Type_Buy
 		// if i%2 != 0 {
@@ -45,14 +46,14 @@ func TestAdd(t *testing.T) {
 		unit := NewUnit(func(u *Unit) {
 			u.Type = traceType
 			u.Name = "xlj-" + strconv.Itoa(i)
-			u.Price = 1.2
+			u.Price = price
 			u.Amount = 1
 			u.UID = rand.Intn(10) + 1
 		})
 		bid.Add(unit)
 	}
 
-	fmt.Println(bid.BuyData().Map, bid.BuyData().Array, bid.SellData().Array)
+	fmt.Println(bid.Buy().Len())
 
 	var total float64
 	for n := bid.Buy().Front(); n != nil; n = n.Next() {
@@ -62,6 +63,7 @@ func TestAdd(t *testing.T) {
 	}
 	t.Logf("buy length %d %.2f", bid.Buy().Len(), total)
 
+	os.Exit(100)
 	// for n := bid.Sell().Front(); n != nil; n = n.Next() {
 	// 	t.Logf("%#v", n.Value)
 	// }

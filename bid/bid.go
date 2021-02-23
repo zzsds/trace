@@ -1,9 +1,7 @@
 package bid
 
 import (
-	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/zzsds/trade/queue"
 )
@@ -15,8 +13,6 @@ type Server interface {
 	Init() Server
 	Buy() queue.Server
 	Sell() queue.Server
-	BuyData() *Data
-	SellData() *Data
 	Cancel(queue.Server, int) error
 	Add(*Unit) error
 	Buffer() <-chan Message
@@ -33,31 +29,8 @@ var bids = make(map[int]Server)
 // Bid bid
 type Bid struct {
 	opts      options
-	buy, sell *Data
+	buy, sell queue.Server
 }
-
-// Data ...
-type Data struct {
-	Sort  Sort
-	Queue queue.Server
-	Map   map[float64]*queue.Node
-	Array []float64
-}
-
-// NewData ...
-func NewData(name string, sort Sort) *Data {
-	return &Data{
-		Sort:  Sort_Asc,
-		Queue: queue.NewQueue(queue.Name(name)),
-		Map:   make(map[float64]*queue.Node),
-		Array: make([]float64, 0, 100),
-	}
-}
-
-// Len ...
-func (d Data) Len() int           { return len(d.Array) }
-func (d Data) Swap(i, j int)      { d.Array[i], d.Array[j] = d.Array[j], d.Array[i] }
-func (d Data) Less(i, j int) bool { return d.Array[i] < d.Array[j] }
 
 // Register a bid
 func Register(id int, p Server) error {
@@ -88,8 +61,8 @@ func NewBid(opts ...Option) Server {
 
 // Init 初始化交易对
 func (h *Bid) Init() Server {
-	h.buy = NewData(Type_Buy.String(), Sort_Desc)
-	h.sell = NewData(Type_Sell.String(), Sort_Asc)
+	h.buy = queue.NewQueue(queue.Name("BUY"))
+	h.sell = queue.NewQueue(queue.Name("SELL"))
 	return h
 }
 
@@ -105,21 +78,11 @@ func (h *Bid) Name() string {
 
 // Buy ...
 func (h *Bid) Buy() queue.Server {
-	return h.buy.Queue
+	return h.buy
 }
 
 // Sell ...
 func (h *Bid) Sell() queue.Server {
-	return h.sell.Queue
-}
-
-// BuyData ...
-func (h *Bid) BuyData() *Data {
-	return h.buy
-}
-
-// SellData ...
-func (h *Bid) SellData() *Data {
 	return h.sell
 }
 
@@ -132,103 +95,19 @@ func (h *Bid) Amount() int {
 func (h *Bid) Add(u *Unit) error {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
-	t := h.buy
+	q := h.buy
 	if u.Type == Type_Sell {
-		t = h.sell
+		q = h.sell
 	}
 
-	q := t.Queue
 	var newNode *queue.Node
-	defer func(n *queue.Node) {
-		if n == nil {
-			return
-		}
-		h.opts.buffer <- Message{
-			Queue: q,
-			Node:  n,
-		}
-	}(newNode)
 	if q.Len() <= 0 {
 		newNode = q.PushFront(u)
-		t.Map[u.Price] = newNode
-		t.Array = append(t.Array, u.Price)
 		return nil
 	}
 
-	if n, ok := t.Map[u.Price]; ok {
-		v, ok := n.Value.(*Unit)
-		if !ok {
-			return errors.New("value type undefind")
-		}
-		for n := n; n != nil; n = n.Next() {
-			v = n.Value.(*Unit)
-			if v.Price != u.Price {
-				break
-			}
-			if v.UID == u.UID {
-				v.Amount += u.Amount
-				n.Value = v
-				newNode = n
-				return nil
-			}
-		}
-
-		if v.CreateAt.After(u.CreateAt) {
-			newNode = q.InsertBefore(u, n)
-		} else {
-			newNode = q.InsertAfter(u, n)
-		}
-
-		return nil
-	}
-
-	for _, p := range t.Array {
-		n, ok := t.Map[p]
-		if !ok || n == nil {
-			break
-		}
-		// 买家队列，按照价格高优先，时间优先
-		if h.buy.Queue == q {
-			if u.Price > p {
-				//价格高者优先
-				newNode = q.InsertBefore(u, n)
-				break
-			}
-			continue
-		}
-
-		// 卖家队列，按照价格高优先，时间优先
-		if h.sell.Queue == q {
-			if p > u.Price {
-				//价格高者优先
-				newNode = q.InsertBefore(u, n)
-				break
-			}
-			continue
-		}
-	}
-
-	if newNode == nil {
-		return nil
-	}
-
-	if _, ok := t.Map[u.Price]; !ok {
-		t.Array = append(t.Array, u.Price)
-	}
-	t.Map[u.Price] = newNode
-	h.opts.amount++
-
-	if h.buy.Queue == q {
-		sort.Sort(sort.Reverse(sort.Float64Slice(t.Array)))
-	} else {
-		sort.Float64Slice(t.Array).Sort()
-	}
-
-	return nil
-
-	message := Message{Queue: q}
 	if q.Len() == 0 {
-		message.Node = q.PushFront(u)
+		newNode = q.PushFront(u)
 	} else {
 		for n := q.Front(); n != nil; n = n.Next() {
 			v, ok := n.Value.(*Unit)
@@ -239,32 +118,43 @@ func (h *Bid) Add(u *Unit) error {
 				if v.UID == u.UID {
 					v.Amount += u.Amount
 					n.Value = v
-					message.Node = n
+					newNode = n
 					break
 				}
 				if v.CreateAt.After(u.CreateAt) {
-					message.Node = q.InsertBefore(u, n)
+					newNode = q.InsertBefore(u, n)
 					break
 				} else {
-					message.Node = q.InsertAfter(u, n)
+					newNode = q.InsertAfter(u, n)
 					break
 				}
 			}
 
 			//如果是买家队列，按照价格高优先，时间优先
-			if h.buy.Queue == q && u.Price > v.Price {
+			if h.buy == q && u.Price > v.Price {
 				//价格高者优先
-				message.Node = q.InsertBefore(u, n)
+				newNode = q.InsertBefore(u, n)
 				break
-			} else if h.sell.Queue == q && v.Price > u.Price {
+			} else if h.sell == q && v.Price > u.Price {
 				//价格高者优先
-				message.Node = q.InsertBefore(u, n)
+				newNode = q.InsertBefore(u, n)
 				break
 			}
 		}
 	}
 	h.opts.amount++
-	// h.opts.buffer <- message
+	// _ = newNode
+	// fmt.Println(newNode)
+	// h.opts.buffer <- Message{Queue: q, Node: newNode}
+	defer func(n *queue.Node) {
+		if n == nil {
+			return
+		}
+		h.opts.buffer <- Message{
+			Queue: q,
+			Node:  n,
+		}
+	}(newNode)
 
 	return nil
 }
