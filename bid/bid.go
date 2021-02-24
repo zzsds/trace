@@ -2,6 +2,7 @@ package bid
 
 import (
 	"fmt"
+	sync "sync"
 
 	"github.com/zzsds/trade/queue"
 )
@@ -11,10 +12,10 @@ type Server interface {
 	ID() int
 	Name() string
 	Init() Server
-	Buy() queue.Server
-	Sell() queue.Server
-	Cancel(queue.Server, int) error
+	Buy() *Data
+	Sell() *Data
 	Add(*Unit) error
+	Remove(*Data, int, float64) error
 	Buffer() <-chan Message
 }
 
@@ -29,7 +30,21 @@ var bids = make(map[int]Server)
 // Bid bid
 type Bid struct {
 	opts      options
-	buy, sell queue.Server
+	buy, sell *Data
+}
+
+// Data ...
+type Data struct {
+	*sync.RWMutex
+	queue.Server
+}
+
+// NewData ...
+func NewData(name string) *Data {
+	return &Data{
+		&sync.RWMutex{},
+		queue.NewQueue(queue.Name(name)),
+	}
 }
 
 // Register a bid
@@ -61,8 +76,8 @@ func NewBid(opts ...Option) Server {
 
 // Init 初始化交易对
 func (h *Bid) Init() Server {
-	h.buy = queue.NewQueue(queue.Name("BUY"))
-	h.sell = queue.NewQueue(queue.Name("SELL"))
+	h.buy = NewData("BUY")
+	h.sell = NewData("SELL")
 	return h
 }
 
@@ -76,30 +91,22 @@ func (h *Bid) Name() string {
 	return h.opts.name
 }
 
-// Buy ...
-func (h *Bid) Buy() queue.Server {
-	return h.buy
-}
-
-// Sell ...
-func (h *Bid) Sell() queue.Server {
-	return h.sell
-}
-
 // Amount ...
 func (h *Bid) Amount() int {
 	return h.opts.amount
 }
 
-// Add ...
-func (h *Bid) Add(u *Unit) error {
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
-	q := h.buy
-	if u.Type == Type_Sell {
-		q = h.sell
-	}
+// Buy ...
+func (h *Bid) Buy() *Data {
+	return h.buy
+}
 
+// Sell ...
+func (h *Bid) Sell() *Data {
+	return h.sell
+}
+
+func (h *Bid) add(q queue.Server, u *Unit) error {
 	var newNode *queue.Node
 	if q.Len() <= 0 {
 		newNode = q.PushFront(u)
@@ -112,8 +119,9 @@ func (h *Bid) Add(u *Unit) error {
 		for n := q.Front(); n != nil; n = n.Next() {
 			v, ok := n.Value.(*Unit)
 			if !ok {
-				break
+				return fmt.Errorf("asset fail")
 			}
+
 			if v.Price == u.Price {
 				if v.UID == u.UID {
 					v.Amount += u.Amount
@@ -143,9 +151,8 @@ func (h *Bid) Add(u *Unit) error {
 		}
 	}
 	h.opts.amount++
-	// _ = newNode
-	// fmt.Println(newNode)
-	// h.opts.buffer <- Message{Queue: q, Node: newNode}
+
+	fmt.Println(newNode)
 	defer func(n *queue.Node) {
 		if n == nil {
 			return
@@ -155,19 +162,32 @@ func (h *Bid) Add(u *Unit) error {
 			Node:  n,
 		}
 	}(newNode)
-
 	return nil
 }
 
-// Cancel ...
-func (h *Bid) Cancel(q queue.Server, ID int) error {
-	q.Loop(func(n *queue.Node) error {
-		if n != nil && n.Value.(*Unit).ID == ID {
-			q.Remove(n)
+// Add ...
+func (h *Bid) Add(u *Unit) error {
+	q := h.buy
+	if u.Type == Type_Sell {
+		q = h.sell
+	}
+	q.Lock()
+	defer q.Unlock()
+
+	return h.add(q, u)
+}
+
+// Remove ...
+func (h *Bid) Remove(d *Data, uid int, price float64) error {
+	d.Lock()
+	defer d.Unlock()
+	return d.Loop(func(n *queue.Node) error {
+		u := n.Value.(*Unit)
+		if n != nil && u.UID == uid && u.Price == price {
+			d.Remove(n)
 		}
 		return nil
 	})
-	return nil
 }
 
 // Buffer 获取缓冲

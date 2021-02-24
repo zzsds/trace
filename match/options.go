@@ -7,14 +7,14 @@ import (
 
 // options ...
 type options struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	exit   chan bool
-	state  bool
-	mutex  *sync.RWMutex
 	name   string
+	mutex  *sync.RWMutex
+	ctx    context.Context
+	cancel func()
+	state  bool
 	buffer chan Result
 	signal bool
+	exit   chan bool
 }
 
 // Option ...

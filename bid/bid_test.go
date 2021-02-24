@@ -2,11 +2,11 @@ package bid
 
 import (
 	"bytes"
-	"fmt"
+	"encoding/json"
 	"html/template"
 	"math/rand"
-	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -39,11 +39,12 @@ func TestAdd(t *testing.T) {
 		price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 		// price, _ := strconv.ParseFloat(strconv.Itoa(i), 64)
 		traceType := Type_Buy
-		// if i%2 != 0 {
-		// 	traceType = Type_Sell
-		// }
+		if i%2 != 0 {
+			traceType = Type_Sell
+		}
 
 		unit := NewUnit(func(u *Unit) {
+			u.ID = i
 			u.Type = traceType
 			u.Name = "xlj-" + strconv.Itoa(i)
 			u.Price = price
@@ -53,21 +54,25 @@ func TestAdd(t *testing.T) {
 		bid.Add(unit)
 	}
 
-	fmt.Println(bid.Buy().Len())
+	bid.Remove(bid.Buy(), 1, 1)
 
 	var total float64
 	for n := bid.Buy().Front(); n != nil; n = n.Next() {
 		unit := n.Value.(*Unit)
 		total += float64(unit.Amount)
-		t.Logf("%v", n.Value)
+		b, _ := json.MarshalIndent(n.Value, "", "\t")
+		s := strings.Replace(string(b), "　", "", -1)
+		t.Logf("%s", strings.Replace(s, "\n", "", -1))
 	}
 	t.Logf("buy length %d %.2f", bid.Buy().Len(), total)
 
-	os.Exit(100)
-	// for n := bid.Sell().Front(); n != nil; n = n.Next() {
-	// 	t.Logf("%#v", n.Value)
-	// }
-	// t.Logf("sell length %d", bid.Sell().Len())
+	bid.Remove(bid.Sell(), 1, 1)
+	for n := bid.Sell().Front(); n != nil; n = n.Next() {
+		b, _ := json.MarshalIndent(n.Value, "", "\t")
+		s := strings.Replace(string(b), "　", "", -1)
+		t.Logf("%s", strings.Replace(s, "\n", "", -1))
+	}
+	t.Logf("sell length %d", bid.Sell().Len())
 
 	<-time.After(1 * time.Millisecond)
 }
@@ -151,25 +156,24 @@ func BenchmarkAddParallel(t *testing.B) {
 }
 
 func BenchmarkAddBid(t *testing.B) {
-	go func() {
-		for {
-			select {
-			case msg := <-bid.Buffer():
-				_ = msg
-			}
-		}
-	}()
 	t.ReportAllocs()
+	once.Do(func() {
+		go func() {
+			for {
+				select {
+				case message := <-bid.Buffer():
+					_ = message
+					// t.Log(message.Queue.Name(), message.Node.Value)
+				}
+			}
+		}()
+	})
 	t.RunParallel(func(p *testing.PB) {
 		// Each goroutine has its own bytes.Buffer.
 		for p.Next() {
 			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
-			traceType := Type_Buy
-			if rand.Intn(100)%2 == 0 {
-				traceType = Type_Sell
-			}
 			bid.Add(&Unit{
-				Type:     traceType,
+				Type:     Type_Buy,
 				CreateAt: time.Now(),
 				Name:     "xlj",
 				Amount:   int(rand.Intn(1000)),

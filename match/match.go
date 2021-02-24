@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 
 	"github.com/zzsds/trade/bid"
 )
@@ -101,7 +100,6 @@ func (h *Match) Buffer() <-chan Result {
 
 // handle 处理委托队列执行撮合交易
 func (h *Match) handle(ctx context.Context) error {
-	mutex := sync.RWMutex{}
 	go func() {
 		for {
 			select {
@@ -110,12 +108,13 @@ func (h *Match) handle(ctx context.Context) error {
 				log.Println("goroutine exit")
 				return
 			case message := <-h.bid.Buffer():
-				mutex.Lock()
-				err := h.match(ctx, &message)
-				mutex.Unlock()
-				if err != nil {
-					break
-				}
+				// _ = message
+				fmt.Println(message.Node.Value)
+				// err := h.match(&message)
+				// if err != nil {
+				// 	break
+				// }
+
 			}
 		}
 	}()
@@ -124,9 +123,11 @@ func (h *Match) handle(ctx context.Context) error {
 }
 
 // 撮合买卖委托交易
-func (h *Match) match(ctx context.Context, message *bid.Message) error {
+func (h *Match) match(message *bid.Message) error {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
 	node := message.Node
-	if node == nil {
+	if !h.opts.state || node == nil {
 		return nil
 	}
 	currentUnit, ok := node.Value.(*bid.Unit)
@@ -143,7 +144,8 @@ func (h *Match) match(ctx context.Context, message *bid.Message) error {
 	if object.Len() <= 0 {
 		return nil
 	}
-
+	object.Lock()
+	defer object.Unlock()
 	for n := object.Front(); n != nil && currentUnit.Amount > result.Amount; n = n.Next() {
 		objectUnit, ok := n.Value.(*bid.Unit)
 		if !ok {

@@ -304,13 +304,13 @@ func (l *Queue) PushFrontQueue(other *Queue) {
 }
 
 // Loop 单次循环
-func (l *Queue) Loop(f Call) error {
+func (l *Queue) Loop(f Call) (err error) {
 	for node := l.Front(); node != nil; node = node.Next() {
-		if err := f(node); err != nil {
+		if err = f(node); err != nil {
 			break
 		}
 	}
-	return nil
+	return err
 }
 
 // Get 根据索引查询
