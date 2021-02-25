@@ -18,6 +18,9 @@ type options struct {
 	signal    bool
 }
 
+// Message ...
+type Message struct{}
+
 // Option ...
 type Option func(*options)
 

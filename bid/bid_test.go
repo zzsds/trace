@@ -53,12 +53,11 @@ func TestAdd(t *testing.T) {
 		})
 		bid.Add(unit)
 	}
-
-	bid.Remove(bid.Buy(), 1, 1)
+	// bid.Buy().Remove()
 
 	var total float64
 	for n := bid.Buy().Front(); n != nil; n = n.Next() {
-		unit := n.Value.(*Unit)
+		unit := n.Value.(Unit)
 		total += float64(unit.Amount)
 		b, _ := json.MarshalIndent(n.Value, "", "\t")
 		s := strings.Replace(string(b), "　", "", -1)
@@ -66,7 +65,7 @@ func TestAdd(t *testing.T) {
 	}
 	t.Logf("buy length %d %.2f", bid.Buy().Len(), total)
 
-	bid.Remove(bid.Sell(), 1, 1)
+	// bid.Remove(bid.Sell(), 1, 1)
 	for n := bid.Sell().Front(); n != nil; n = n.Next() {
 		b, _ := json.MarshalIndent(n.Value, "", "\t")
 		s := strings.Replace(string(b), "　", "", -1)
