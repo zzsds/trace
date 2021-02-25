@@ -14,7 +14,7 @@ type options struct {
 	name      string
 	amount    int
 	maxAmount int
-	buffer    chan Message
+	buffer    chan interface{}
 	signal    bool
 }
 
@@ -27,7 +27,7 @@ type Option func(*options)
 func newOptions(opts ...Option) options {
 	opt := options{
 		mutex:  &sync.RWMutex{},
-		buffer: make(chan Message),
+		buffer: make(chan interface{}),
 		signal: true,
 	}
 	for _, o := range opts {

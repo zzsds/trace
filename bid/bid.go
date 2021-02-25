@@ -12,7 +12,7 @@ type Server interface {
 	Buy() DataServer
 	Sell() DataServer
 	Add(*Unit) error
-	Buffer() <-chan Message
+	Buffer() <-chan interface{}
 }
 
 var bids = make(map[int]Server)
@@ -53,8 +53,8 @@ func NewBid(opts ...Option) Server {
 
 // Init 初始化交易对
 func (h *Bid) Init() error {
-	h.buy = NewData(WithName("BUY"), WithSort(Sort_Desc))
-	h.sell = NewData(WithName("SELL"), WithSort(Sort_Asc))
+	h.buy = NewData(WithName("BUY"), WithSort(Sort_Desc), WithBuffer(h.opts.buffer))
+	h.sell = NewData(WithName("SELL"), WithSort(Sort_Asc), WithBuffer(h.opts.buffer))
 	return nil
 }
 
@@ -84,7 +84,7 @@ func (h *Bid) Sell() DataServer {
 }
 
 // Buffer ...
-func (h *Bid) Buffer() <-chan Message {
+func (h *Bid) Buffer() <-chan interface{} {
 	return h.opts.buffer
 }
 
@@ -96,5 +96,9 @@ func (h *Bid) Add(unit *Unit) error {
 	} else {
 		t = h.sell
 	}
-	return t.Add(*unit)
+	res, err := t.Add(*unit)
+	if res != nil {
+		h.opts.buffer <- res
+	}
+	return err
 }

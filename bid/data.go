@@ -2,29 +2,36 @@ package bid
 
 import (
 	"container/list"
+	"fmt"
 	"sync"
 )
 
 // DataServer ...
 type DataServer interface {
-	sync.Locker
 	ListServer
 	Init() error
 	Name() string
 	Sort() Sort
-	Add(Unit) error
+	Add(Unit) (interface{}, error)
 }
 
 // Data ...
 type Data struct {
-	*sync.RWMutex
 	*List
-	sort Sort
-	name string
+	sort   Sort
+	name   string
+	buffer chan interface{}
 }
 
 // DataOption ...
 type DataOption func(*Data)
+
+// WithBuffer ...
+func WithBuffer(ch chan interface{}) DataOption {
+	return func(d *Data) {
+		d.buffer = ch
+	}
+}
 
 // WithSort 设置排序方式
 func WithSort(sort Sort) DataOption {
@@ -54,8 +61,7 @@ func NewData(opts ...DataOption) DataServer {
 
 // Init ...
 func (h *Data) Init() error {
-	h.List = &List{list.New()}
-	h.RWMutex = &sync.RWMutex{}
+	h.List = &List{&sync.RWMutex{}, list.New()}
 	return nil
 }
 
@@ -70,51 +76,47 @@ func (h Data) Sort() Sort {
 }
 
 // Add ...
-func (h *Data) Add(u Unit) error {
-	h.Lock()
-	defer h.Unlock()
-	var node *Node
+func (h *Data) Add(u Unit) (interface{}, error) {
+
 	if h.Len() <= 0 {
-		node = h.PushFront(u)
-	} else {
-		for n := h.Front(); n != nil; n = n.Next() {
-			v, ok := n.Value.(Unit)
-			if !ok {
-				break
-			}
-			if v.Price == u.Price {
-				if v.UID == u.UID {
-					v.Amount += u.Amount
-					n.Value = v
-					// node = n
-					break
-				}
-				if v.CreateAt.After(u.CreateAt) {
-					node = h.InsertBefore(u, n)
-					break
-				} else {
-					node = h.InsertAfter(u, n)
-					break
-				}
-			}
+		return h.PushFront(u), nil
+	}
 
-			// 降序，按照价格高优先，时间优先  买
-			if h.sort == Sort_Desc && u.Price > v.Price {
+	var node *Node
+	for n := h.Front(); n != nil; n = n.Next() {
+		v, ok := n.Value.(Unit)
+		if !ok {
+			return nil, fmt.Errorf("Parsing failed")
+		}
+		if v.Price == u.Price {
+			if v.UID == u.UID {
+				v.Amount += u.Amount
+				n.Value = v
+				// node = n
+				// break
+				return nil, nil
+			}
+			if v.CreateAt.After(u.CreateAt) {
 				node = h.InsertBefore(u, n)
 				break
-			}
-
-			// 升序，按照价格高优先，时间优先  卖
-			if h.sort == Sort_Asc && u.Price < v.Price {
-				node = h.InsertBefore(u, n)
+			} else {
+				node = h.InsertAfter(u, n)
 				break
 			}
 		}
+
+		// 降序，按照价格高优先，时间优先  买
+		if h.sort == Sort_Desc && u.Price > v.Price {
+			node = h.InsertBefore(u, n)
+			break
+		}
+
+		// 升序，按照价格高优先，时间优先  卖
+		if h.sort == Sort_Asc && u.Price < v.Price {
+			node = h.InsertBefore(u, n)
+			break
+		}
 	}
 
-	if node != nil {
-
-	}
-
-	return nil
+	return node, nil
 }
