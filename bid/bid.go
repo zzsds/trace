@@ -90,6 +90,8 @@ func (h *Bid) Buffer() <-chan interface{} {
 
 // Add ...
 func (h *Bid) Add(unit *Unit) error {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
 	var t DataServer
 	if unit.Type == Type_Buy {
 		t = h.buy

@@ -12,7 +12,7 @@ type DataServer interface {
 	Init() error
 	Name() string
 	Sort() Sort
-	Add(Unit) (interface{}, error)
+	Add(Unit) (*Node, error)
 }
 
 // Data ...
@@ -76,7 +76,7 @@ func (h Data) Sort() Sort {
 }
 
 // Add ...
-func (h *Data) Add(u Unit) (interface{}, error) {
+func (h *Data) Add(u Unit) (*Node, error) {
 
 	if h.Len() <= 0 {
 		return h.PushFront(u), nil

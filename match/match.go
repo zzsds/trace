@@ -108,12 +108,12 @@ func (h *Match) handle(ctx context.Context) error {
 				log.Println("goroutine exit")
 				return
 			case message := <-h.bid.Buffer():
-				// _ = message
-				fmt.Println(message.Node.Value)
-				// err := h.match(&message)
-				// if err != nil {
-				// 	break
-				// }
+				_ = message
+				// fmt.Println(message.(*bid.Node))
+				err := h.match(message.(*bid.Node))
+				if err != nil {
+					break
+				}
 
 			}
 		}
@@ -123,31 +123,29 @@ func (h *Match) handle(ctx context.Context) error {
 }
 
 // 撮合买卖委托交易
-func (h *Match) match(message *bid.Message) error {
+func (h *Match) match(node *bid.Node) error {
 	h.opts.mutex.Lock()
 	defer h.opts.mutex.Unlock()
-	node := message.Node
-	if !h.opts.state || node == nil {
+	if !h.opts.state {
 		return nil
 	}
-	currentUnit, ok := node.Value.(*bid.Unit)
+	currentUnit, ok := node.Value.(bid.Unit)
 	if !ok {
-		return nil
+		return fmt.Errorf("Parsing failed")
 	}
 
-	result := Result{Bid: h.bid, Trigger: *currentUnit}
+	result := Result{Bid: h.bid, Trigger: currentUnit}
 	current, object := h.bid.Buy(), h.bid.Sell()
-	if message.Queue == h.bid.Sell() {
+	if currentUnit.Type == bid.Type_Sell {
 		current, object = h.bid.Sell(), h.bid.Buy()
 	}
 
 	if object.Len() <= 0 {
 		return nil
 	}
-	object.Lock()
-	defer object.Unlock()
+
 	for n := object.Front(); n != nil && currentUnit.Amount > result.Amount; n = n.Next() {
-		objectUnit, ok := n.Value.(*bid.Unit)
+		objectUnit, ok := n.Value.(bid.Unit)
 		if !ok {
 			break
 		}
@@ -163,7 +161,7 @@ func (h *Match) match(message *bid.Message) error {
 				object.Remove(n)
 				// 加入到撮合成功数量中
 				result.Amount += objectUnit.Amount
-				result.Trades = append(result.Trades, *objectUnit)
+				result.Trades = append(result.Trades, objectUnit)
 				break
 			}
 
@@ -173,7 +171,7 @@ func (h *Match) match(message *bid.Message) error {
 				n.Value = objectUnit
 				// 加入到撮合成功数量中
 				result.Amount += currentUnit.Amount
-				result.Trades = append(result.Trades, *objectUnit)
+				result.Trades = append(result.Trades, objectUnit)
 				break
 			}
 
@@ -184,7 +182,7 @@ func (h *Match) match(message *bid.Message) error {
 				// 减去购买数量
 				currentUnit.Amount -= objectUnit.Amount
 				n.Value = currentUnit
-				result.Trades = append(result.Trades, *objectUnit)
+				result.Trades = append(result.Trades, objectUnit)
 				continue
 			}
 		}
