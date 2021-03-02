@@ -70,8 +70,8 @@ func (s *Trade) Load(name string) (match.Server, error) {
 // Register ...
 func (s *Trade) Register(match match.Server) Server {
 	if _, ok := s.match[match.Name()]; !ok {
+		match.Start()
 		s.match[match.Name()] = match
-		go s.match[match.Name()].Run()
 	}
 	return s
 }
@@ -83,7 +83,6 @@ func (s *Trade) start() error {
 			return err
 		}
 	}
-
 	for _, m := range s.match {
 		go m.Run()
 	}

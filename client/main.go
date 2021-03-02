@@ -84,18 +84,23 @@ func main() {
 		fmt.Println(m.State(), m.Name())
 		var buf bytes.Buffer
 		buf.WriteString("\n\t")
+
+		m.Bid().Buy().Lock()
 		for n := m.Bid().Buy().Front(); n != nil; n = n.Next() {
 			b, _ := json.Marshal(n.Value)
 
 			buf.Write(b)
 			buf.WriteString("\n\t")
 		}
+		m.Bid().Buy().Unlock()
+		m.Bid().Sell().Lock()
 		for n := m.Bid().Sell().Front(); n != nil; n = n.Next() {
 			b, _ := json.Marshal(n.Value)
 
 			buf.Write(b)
 			buf.WriteString("\n\t")
 		}
+		m.Bid().Sell().Unlock()
 		rw.Write(buf.Bytes())
 	})
 	http.HandleFunc("/add", func(rw http.ResponseWriter, r *http.Request) {

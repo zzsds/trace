@@ -20,6 +20,7 @@ type ListServer interface {
 	PushBack(interface{}) *Node
 	InsertBefore(interface{}, *Node) *Node
 	InsertAfter(interface{}, *Node) *Node
+	List()
 }
 
 // List ...
@@ -35,35 +36,35 @@ func (l *List) Edit(node *Node) interface{} {
 
 // Remove ...
 func (l *List) Remove(e *Node) interface{} {
-	l.Lock()
-	defer l.Unlock()
+	// l.Lock()
+	// defer l.Unlock()
 	return l.List.Remove(e)
 }
 
 // PushFront ...
 func (l *List) PushFront(v interface{}) *Node {
-	l.Lock()
-	defer l.Unlock()
+	// l.Lock()
+	// defer l.Unlock()
 	return l.List.PushFront(v)
 }
 
 // PushBack ...
 func (l *List) PushBack(v interface{}) *Node {
-	l.Lock()
-	defer l.Unlock()
+	// l.Lock()
+	// defer l.Unlock()
 	return l.List.PushBack(v)
 }
 
 // InsertBefore ...
 func (l *List) InsertBefore(v interface{}, mark *Node) *Node {
-	l.Lock()
-	defer l.Unlock()
+	// l.Lock()
+	// defer l.Unlock()
 	return l.List.InsertBefore(v, mark)
 }
 
 // InsertAfter ...
 func (l *List) InsertAfter(v interface{}, mark *Node) *Node {
-	l.Lock()
-	defer l.Unlock()
+	// l.Lock()
+	// defer l.Unlock()
 	return l.List.InsertAfter(v, mark)
 }

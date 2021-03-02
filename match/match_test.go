@@ -22,7 +22,7 @@ func TestBuffer(t *testing.T) {
 			select {
 			case result := <-matchup.Buffer():
 				_ = result
-				// t.Logf("%s, %#v, %#v", result.Bid.Name(), result.Trigger, result.Trades)
+				t.Logf("%s, %#v, %#v", result.Bid.Name(), result.Trigger, result.Trades)
 			}
 		}
 

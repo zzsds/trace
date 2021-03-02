@@ -140,7 +140,7 @@ func BenchmarkAddParallel(t *testing.B) {
 	})
 	t.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
+			// strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 			price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(100)), 64)
 			bid.Add(&Unit{
 				Type:     Type_Sell,
@@ -152,6 +152,8 @@ func BenchmarkAddParallel(t *testing.B) {
 			})
 		}
 	})
+
+	t.Log(t.N, bid.Buy().Len(), bid.Sell().Len())
 }
 
 func BenchmarkAddBid(t *testing.B) {

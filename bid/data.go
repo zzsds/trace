@@ -77,6 +77,8 @@ func (h Data) Sort() Sort {
 
 // Add ...
 func (h *Data) Add(u Unit) (*Node, error) {
+	h.Lock()
+	defer h.Unlock()
 
 	if h.Len() <= 0 {
 		return h.PushFront(u), nil
