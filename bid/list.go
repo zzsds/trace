@@ -14,14 +14,17 @@ type ListServer interface {
 	Len() int
 	Front() *Node
 	Back() *Node
-	Edit(*Node) interface{}
 	Remove(*Node) interface{}
 	PushFront(interface{}) *Node
 	PushBack(interface{}) *Node
 	InsertBefore(interface{}, *Node) *Node
 	InsertAfter(interface{}, *Node) *Node
-	List()
+	NodeList() []*Node
+	CallList(CallOption)
 }
+
+// CallOption ...
+type CallOption func(*Node) bool
 
 // List ...
 type List struct {
@@ -29,42 +32,38 @@ type List struct {
 	*list.List
 }
 
-// Edit ...
-func (l *List) Edit(node *Node) interface{} {
-	return nil
-}
-
-// Remove ...
-func (l *List) Remove(e *Node) interface{} {
-	// l.Lock()
-	// defer l.Unlock()
-	return l.List.Remove(e)
+// Len ...
+func (l *List) Len() int {
+	l.Lock()
+	defer l.Unlock()
+	return l.List.Len()
 }
 
 // PushFront ...
 func (l *List) PushFront(v interface{}) *Node {
-	// l.Lock()
-	// defer l.Unlock()
+	l.Lock()
+	defer l.Unlock()
 	return l.List.PushFront(v)
 }
 
-// PushBack ...
-func (l *List) PushBack(v interface{}) *Node {
-	// l.Lock()
-	// defer l.Unlock()
-	return l.List.PushBack(v)
+// NodeList ...
+func (l *List) NodeList() []*Node {
+	l.Lock()
+	defer l.Unlock()
+	var marks []*Node
+	for n := l.Front(); n != nil; n = n.Next() {
+		marks = append(marks, n)
+	}
+	return marks
 }
 
-// InsertBefore ...
-func (l *List) InsertBefore(v interface{}, mark *Node) *Node {
-	// l.Lock()
-	// defer l.Unlock()
-	return l.List.InsertBefore(v, mark)
-}
-
-// InsertAfter ...
-func (l *List) InsertAfter(v interface{}, mark *Node) *Node {
-	// l.Lock()
-	// defer l.Unlock()
-	return l.List.InsertAfter(v, mark)
+// CallList ...
+func (l *List) CallList(fn CallOption) {
+	l.Lock()
+	defer l.Unlock()
+	for n := l.Front(); n != nil; n = n.Next() {
+		if !fn(n) {
+			break
+		}
+	}
 }

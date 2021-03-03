@@ -24,7 +24,7 @@ func main() {
 	})
 	m := match.NewMatch(match.Name("goods")).Register(bid.NewBid(bid.Name("USDT-BTC")))
 	t.Register(m)
-	go t.Run()
+	m.Start()
 
 	go func() {
 		m, err := t.Load(m.Name())
@@ -36,7 +36,7 @@ func main() {
 			case msg := <-m.Buffer():
 				_ = msg.Amount
 				// log.Println(msg)
-				fmt.Fprint(os.Stderr, "撮合结果 \n", msg)
+				fmt.Fprint(os.Stderr, "撮合结果 \n", msg.Trigger)
 			}
 		}
 	}()
@@ -85,32 +85,36 @@ func main() {
 		var buf bytes.Buffer
 		buf.WriteString("\n\t")
 
-		m.Bid().Buy().Lock()
-		for n := m.Bid().Buy().Front(); n != nil; n = n.Next() {
+		buf.WriteString(m.Bid().Buy().Name())
+		buf.WriteString("\n\t")
+		for _, n := range m.Bid().Buy().NodeList() {
 			b, _ := json.Marshal(n.Value)
 
 			buf.Write(b)
 			buf.WriteString("\n\t")
 		}
-		m.Bid().Buy().Unlock()
-		m.Bid().Sell().Lock()
-		for n := m.Bid().Sell().Front(); n != nil; n = n.Next() {
+
+		buf.WriteString(m.Bid().Sell().Name())
+		buf.WriteString("\n\t")
+		for _, n := range m.Bid().Sell().NodeList() {
 			b, _ := json.Marshal(n.Value)
 
 			buf.Write(b)
 			buf.WriteString("\n\t")
 		}
-		m.Bid().Sell().Unlock()
+
 		rw.Write(buf.Bytes())
 	})
+
 	http.HandleFunc("/add", func(rw http.ResponseWriter, r *http.Request) {
 		m, err := t.Load(m.Name())
 		if err != nil {
 			os.Exit(0)
 		}
 		go func() {
-			for i := 1; i < 10; i++ {
+			for i := 1; i < 200; i++ {
 				price, _ := strconv.ParseFloat(strconv.Itoa(rand.Intn(1000)), 64)
+				// price := 1.0
 				traceType := bid.Type_Buy
 				if i%2 != 0 {
 					traceType = bid.Type_Sell
@@ -118,9 +122,9 @@ func main() {
 				m.Bid().Add(bid.NewUnit(func(u *bid.Unit) {
 					u.Type = traceType
 					u.Name = "xlj"
-					u.Amount = rand.Intn(1000)
+					u.Amount = 1
 					u.Price = price
-					u.UID = rand.Intn(1000)
+					u.UID = i%2 + 1
 					u.ID = int(i)
 				}))
 			}

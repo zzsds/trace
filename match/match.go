@@ -19,7 +19,6 @@ type Server interface {
 	State() bool
 	Start() error
 	Stop() error
-	// Run 启动
 	Run() error
 	Buffer() <-chan Result
 }
@@ -70,25 +69,31 @@ func (h *Match) Name() string {
 
 // State State
 func (h *Match) State() bool {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
 	return h.opts.state
+}
+
+func (h *Match) setState(b bool) {
+	h.opts.mutex.Lock()
+	defer h.opts.mutex.Unlock()
+	h.opts.state = b
 }
 
 // Start ...
 func (h *Match) Start() error {
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
 	var ctx context.Context
-	if h.opts.state {
+	if h.State() {
 		return fmt.Errorf("Cannot start repeatedly")
 	}
 	ctx, h.opts.cancel = context.WithCancel(h.opts.ctx)
-	h.opts.state = true
+	h.setState(true)
 	return h.handle(ctx)
 }
 
 // Stop ...
 func (h *Match) Stop() error {
-	if !h.opts.state || h.opts.cancel == nil {
+	if !h.State() || h.opts.cancel == nil {
 		return fmt.Errorf("Cannot stop repeatedly")
 	}
 	h.opts.cancel()
@@ -106,17 +111,14 @@ func (h *Match) handle(ctx context.Context) error {
 		for {
 			select {
 			case <-ctx.Done():
-				h.opts.state = false
+				h.setState(false)
 				log.Println("goroutine exit")
 				return
 			case message := <-h.bid.Buffer():
-				// _ = message
-				// fmt.Println(message.(*bid.Node))
 				err := h.match(message.(*bid.Node))
 				if err != nil {
 					break
 				}
-
 			}
 		}
 	}()
@@ -126,7 +128,7 @@ func (h *Match) handle(ctx context.Context) error {
 
 // 撮合买卖委托交易
 func (h *Match) match(node *bid.Node) error {
-	if !h.opts.state {
+	if !h.State() {
 		return nil
 	}
 	currentUnit, ok := node.Value.(bid.Unit)
@@ -138,23 +140,26 @@ func (h *Match) match(node *bid.Node) error {
 		current, object = h.bid.Sell(), h.bid.Buy()
 	}
 
-	object.Lock()
-	defer object.Unlock()
 	current.Lock()
 	defer current.Unlock()
+
 	if object.Len() <= 0 {
 		return nil
 	}
 
 	result := Result{Bid: h.bid, Trigger: currentUnit}
-	for n := object.Front(); n != nil && currentUnit.Amount > result.Amount; n = n.Next() {
+	// 撮合匹配
+	object.CallList(func(n *bid.Node) bool {
+		if currentUnit.Amount <= result.Amount {
+			return false
+		}
 		objectUnit, ok := n.Value.(bid.Unit)
 		if !ok {
-			break
+			log.Fatalln(fmt.Errorf("Parsing failed"))
+			return false
 		}
 		if objectUnit.Amount <= 0 {
-			object.Remove(n)
-			break
+			return false
 		}
 
 		if currentUnit.Price >= objectUnit.Price {
@@ -165,7 +170,7 @@ func (h *Match) match(node *bid.Node) error {
 				// 加入到撮合成功数量中
 				result.Amount += objectUnit.Amount
 				result.Trades = append(result.Trades, objectUnit)
-				break
+				return false
 			}
 
 			if currentUnit.Amount < objectUnit.Amount {
@@ -175,7 +180,7 @@ func (h *Match) match(node *bid.Node) error {
 				// 加入到撮合成功数量中
 				result.Amount += currentUnit.Amount
 				result.Trades = append(result.Trades, objectUnit)
-				break
+				return false
 			}
 
 			if currentUnit.Amount > objectUnit.Amount {
@@ -186,10 +191,11 @@ func (h *Match) match(node *bid.Node) error {
 				currentUnit.Amount -= objectUnit.Amount
 				n.Value = currentUnit
 				result.Trades = append(result.Trades, objectUnit)
-				continue
 			}
 		}
-	}
+		return true
+	})
+
 	// 处理当前交易请求结果
 	if result.Amount < result.Trigger.Amount {
 		node.Value = currentUnit
@@ -203,12 +209,11 @@ func (h *Match) match(node *bid.Node) error {
 
 // Run ...
 func (h *Match) Run() error {
-	h.opts.mutex.Lock()
-	defer h.opts.mutex.Unlock()
 	if h.opts.state {
 		return fmt.Errorf("runing")
 	}
-	// 开始撮合
+
+	// 开始启动撮合
 	if err := h.Start(); err != nil {
 		log.Fatalf("Run Match Fail：%v", err)
 	}

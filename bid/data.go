@@ -3,6 +3,7 @@ package bid
 import (
 	"container/list"
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -77,18 +78,16 @@ func (h Data) Sort() Sort {
 
 // Add ...
 func (h *Data) Add(u Unit) (*Node, error) {
-	h.Lock()
-	defer h.Unlock()
-
 	if h.Len() <= 0 {
 		return h.PushFront(u), nil
 	}
 
 	var node *Node
-	for n := h.Front(); n != nil; n = n.Next() {
+	h.CallList(func(n *Node) bool {
 		v, ok := n.Value.(Unit)
 		if !ok {
-			return nil, fmt.Errorf("Parsing failed")
+			log.Fatalln(fmt.Errorf("Parsing failed"))
+			return false
 		}
 		if v.Price == u.Price {
 			if v.UID == u.UID {
@@ -96,29 +95,29 @@ func (h *Data) Add(u Unit) (*Node, error) {
 				n.Value = v
 				// node = n
 				// break
-				return nil, nil
+				return true
 			}
 			if v.CreateAt.After(u.CreateAt) {
 				node = h.InsertBefore(u, n)
-				break
 			} else {
 				node = h.InsertAfter(u, n)
-				break
 			}
+			return false
 		}
 
 		// 降序，按照价格高优先，时间优先  买
 		if h.sort == Sort_Desc && u.Price > v.Price {
 			node = h.InsertBefore(u, n)
-			break
+			return false
 		}
 
 		// 升序，按照价格高优先，时间优先  卖
 		if h.sort == Sort_Asc && u.Price < v.Price {
 			node = h.InsertBefore(u, n)
-			break
+			return false
 		}
-	}
+		return true
+	})
 
 	return node, nil
 }
