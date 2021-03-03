@@ -2,47 +2,28 @@ package match
 
 import (
 	"context"
-	"sync"
 )
 
-// options ...
-type options struct {
-	name   string
-	mutex  *sync.RWMutex
-	ctx    context.Context
-	cancel func()
-	state  bool
-	buffer chan Result
-	signal bool
-	exit   chan bool
+// Options contains configuration for the Store
+type Options struct {
+	// Context should contain all implementation specific options, using context.WithValue.
+	Context context.Context
+	Signal  bool
+	Name    string
 }
 
-// Option ...
-type Option func(*options)
+// Option sets values in Options
+type Option func(o *Options)
 
-func newOptions(opts ...Option) options {
-	opt := options{
-		ctx:    context.Background(),
-		mutex:  &sync.RWMutex{},
-		buffer: make(chan Result, 100),
-		signal: true,
+func newOptions(opts ...Option) Options {
+	opt := Options{
+		Context: context.Background(),
+		Signal:  true,
 	}
+
 	for _, o := range opts {
 		o(&opt)
 	}
+
 	return opt
-}
-
-// Name ...
-func Name(name string) Option {
-	return func(o *options) {
-		o.name = name
-	}
-}
-
-// WithContext ...
-func WithContext(ctx context.Context) Option {
-	return func(o *options) {
-		o.ctx = ctx
-	}
 }

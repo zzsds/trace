@@ -1,16 +1,16 @@
-package bid
+package list
 
-import (
-	"container/list"
-	sync "sync"
-)
+import "container/list"
 
 // Node ...
 type Node = list.Element
 
-// ListServer ...
-type ListServer interface {
-	sync.Locker
+// CallOption ...
+type CallOption func(*Node) bool
+
+// Server ...
+type Server interface {
+	Name() string
 	Len() int
 	Front() *Node
 	Back() *Node
@@ -23,33 +23,26 @@ type ListServer interface {
 	CallList(CallOption)
 }
 
-// CallOption ...
-type CallOption func(*Node) bool
-
 // List ...
 type List struct {
-	*sync.RWMutex
+	opts Options
 	*list.List
 }
 
-// Len ...
-func (l *List) Len() int {
-	l.Lock()
-	defer l.Unlock()
-	return l.List.Len()
+// NewList ...
+func NewList(opts ...Option) Server {
+	return &List{newOptions(opts...), list.New()}
 }
 
-// PushFront ...
-func (l *List) PushFront(v interface{}) *Node {
-	l.Lock()
-	defer l.Unlock()
-	return l.List.PushFront(v)
+// Name ...
+func (l List) Name() string {
+	return l.opts.Name
 }
 
 // NodeList ...
 func (l *List) NodeList() []*Node {
-	l.Lock()
-	defer l.Unlock()
+	l.opts.Lock()
+	defer l.opts.Unlock()
 	var marks []*Node
 	for n := l.Front(); n != nil; n = n.Next() {
 		marks = append(marks, n)
@@ -59,8 +52,8 @@ func (l *List) NodeList() []*Node {
 
 // CallList ...
 func (l *List) CallList(fn CallOption) {
-	l.Lock()
-	defer l.Unlock()
+	l.opts.Lock()
+	defer l.opts.Unlock()
 	for n := l.Front(); n != nil; n = n.Next() {
 		if !fn(n) {
 			break
