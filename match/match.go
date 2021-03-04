@@ -1,26 +1,48 @@
 package match
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/zzsds/trade/bid"
+	"github.com/zzsds/trade/list"
 )
 
 // Server ...
 type Server interface {
 	Init(...Option)
-	Options() Options
+	Options() options
 	Name() string
 	Start() error
+	Stop() error
+	State() bool
 	Run() error
 	Close() error
 	String() string
+	Bid() bid.Server
+	Queue() <-chan interface{}
+}
+
+// Result 撮合结果
+type Result struct {
+	Bid     bid.Server
+	Amount  int
+	Price   float64
+	Trigger *bid.Unit
+	Trades  []*bid.Unit
 }
 
 type match struct {
-	opts Options
-	once sync.Once
+	opts  options
+	once  sync.Once
+	bid   bid.Server
+	queue chan interface{}
 }
 
 // NewMatch ...
@@ -39,7 +61,7 @@ func (m *match) String() string {
 }
 
 func (m *match) Name() string {
-	return m.opts.Name
+	return m.opts.name
 }
 
 // Init ...
@@ -48,31 +70,64 @@ func (m *match) Init(opts ...Option) {
 	for _, o := range opts {
 		o(&m.opts)
 	}
-
 	m.once.Do(func() {
-
+		m.bid = bid.NewBid(bid.Name(m.opts.name))
+		m.queue = make(chan interface{})
 	})
 }
 
+// Queue ...
+func (m *match) Queue() <-chan interface{} {
+	return m.queue
+}
+
+//  Bid ...
+func (m *match) Bid() bid.Server {
+	return m.bid
+}
+
 // Options ...
-func (m *match) Options() Options {
+func (m *match) Options() options {
 	return m.opts
 }
 
 // Close ...
 func (m *match) Close() error {
-	return nil
+	m.bid.Init(bid.Name(m.opts.name))
+	return m.Stop()
 }
 
 // Run ...
 func (m *match) Start() error {
-	return nil
+	if m.State() {
+		return errors.New("match started")
+	}
+	var ctx context.Context
+	ctx, m.opts.cancel = context.WithCancel(context.Background())
+	m.setState(true)
+	return m.handle(ctx)
 }
 
 func (m *match) Stop() error {
+	if !m.State() {
+		return errors.New("match stopped")
+	}
 	var err error
-
+	m.opts.cancel()
+	m.setState(false)
 	return err
+}
+
+func (m *match) setState(b bool) {
+	m.opts.mu.Lock()
+	defer m.opts.mu.Unlock()
+	m.opts.state = b
+}
+
+func (m *match) State() bool {
+	m.opts.mu.Lock()
+	defer m.opts.mu.Unlock()
+	return m.opts.state
 }
 
 // Run ...
@@ -83,7 +138,7 @@ func (m *match) Run() error {
 	}
 
 	ch := make(chan os.Signal, 1)
-	if m.opts.Signal {
+	if m.opts.signal {
 		signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL)
 	}
 
@@ -91,8 +146,105 @@ func (m *match) Run() error {
 	// wait on kill signal
 	case <-ch:
 	// wait on context cancel
-	case <-m.opts.Context.Done():
+	case <-m.opts.context.Done():
 	}
 
-	return m.Stop()
+	return m.Close()
+}
+
+func (m *match) handle(ctx context.Context) error {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("goroutine exit")
+				return
+			case queue := <-m.bid.Queue():
+				if err := m.match(queue); err != nil {
+					break
+				}
+			}
+		}
+	}()
+	return ctx.Err()
+}
+
+func (m *match) match(v interface{}) error {
+	node, ok := v.(*list.Node)
+	if !ok {
+		return errors.New("Queue Parsing failed")
+	}
+
+	currentUnit, ok := node.Value.(*bid.Unit)
+	if !ok {
+		return errors.New("Unit Parsing failed")
+	}
+
+	current, object := m.bid.Buy(), m.bid.Sell()
+	if currentUnit.Type == bid.Type_Sell {
+		current, object = m.bid.Sell(), m.bid.Buy()
+	}
+	current.Lock()
+	defer current.Unlock()
+
+	result := Result{Bid: m.bid, Trigger: currentUnit}
+
+	object.Lock()
+	defer object.Unlock()
+	// 撮合匹配
+	for n := object.Front(); n != nil && currentUnit.Amount > result.Amount; n = n.Next() {
+		objectUnit, ok := n.Value.(*bid.Unit)
+		if !ok {
+			log.Fatalln(fmt.Errorf("Parsing failed"))
+			break
+		}
+		if objectUnit.Amount <= 0 {
+			break
+		}
+
+		if currentUnit.Price >= objectUnit.Price {
+			// 数量相等 全部匹配
+			if currentUnit.Amount == objectUnit.Amount {
+				current.Remove(node)
+				object.Remove(n)
+				// 加入到撮合成功数量中
+				result.Amount += objectUnit.Amount
+				result.Price = currentUnit.Price
+				result.Trades = append(result.Trades, objectUnit)
+				break
+			}
+
+			if currentUnit.Amount < objectUnit.Amount {
+				current.Remove(node)
+				objectUnit.Amount -= currentUnit.Amount
+				n.Value = objectUnit
+				// 加入到撮合成功数量中
+				result.Amount += currentUnit.Amount
+				result.Price = currentUnit.Price
+				result.Trades = append(result.Trades, objectUnit)
+				break
+			}
+
+			if currentUnit.Amount > objectUnit.Amount {
+				object.Remove(n)
+				// 加入到撮合成功数量中
+				result.Amount += objectUnit.Amount
+				result.Price = currentUnit.Price
+				// 减去购买数量
+				currentUnit.Amount -= objectUnit.Amount
+				n.Value = currentUnit
+				result.Trades = append(result.Trades, objectUnit)
+			}
+		}
+	}
+	// 处理当前交易请求结果
+	if result.Amount < result.Trigger.Amount {
+		node.Value = currentUnit
+	}
+	// 成交后进行缓冲推送
+	if result.Amount > 0 {
+		m.queue <- result
+	}
+
+	return nil
 }

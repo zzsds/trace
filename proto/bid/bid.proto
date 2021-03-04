@@ -12,14 +12,3 @@ enum Sort {
 	Asc = 0;
 	Desc = 1;
 }
-
-message Unit {
-	int32 id = 1;
-	int32 uid = 2;
-	string uuid = 3;
-	string name = 4;
-	double amount = 5;
-	double price = 6;
-	int64 createAt = 7;
-	Type type = 8;
-}
