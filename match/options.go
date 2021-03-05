@@ -6,23 +6,23 @@ import (
 )
 
 // Options contains configuration for the Store
-type options struct {
-	// Context should contain all implementation specific options, using context.WithValue.
-	context context.Context
-	cancel  context.CancelFunc
-	state   bool
-	signal  bool
-	name    string
+type Options struct {
+	// Context should contain all implementation specific Options, using context.WithValue.
+	Context context.Context
+	Cancel  context.CancelFunc
+	State   bool
+	Signal  bool
+	Name    string
 	mu      *sync.Mutex
 }
 
 // Option sets values in Options
-type Option func(o *options)
+type Option func(o *Options)
 
-func newOptions(opts ...Option) options {
-	opt := options{
-		context: context.Background(),
-		signal:  true,
+func newOptions(opts ...Option) Options {
+	opt := Options{
+		Context: context.Background(),
+		Signal:  true,
 		mu:      &sync.Mutex{},
 	}
 
@@ -35,14 +35,14 @@ func newOptions(opts ...Option) options {
 
 // Name ...
 func Name(name string) Option {
-	return func(o *options) {
-		o.name = name
+	return func(o *Options) {
+		o.Name = name
 	}
 }
 
 // WithContext ...
 func WithContext(ctx context.Context) Option {
-	return func(o *options) {
-		o.context = ctx
+	return func(o *Options) {
+		o.Context = ctx
 	}
 }

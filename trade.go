@@ -2,7 +2,6 @@ package trade
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/signal"
 
@@ -62,7 +61,7 @@ func (s *Trade) String() string {
 func (s *Trade) Load(name string) (match.Server, error) {
 	m, ok := s.match[name]
 	if !ok {
-		return nil, fmt.Errorf("Trade match non-existent")
+		return nil, errors.New("Trade match non-existent")
 	}
 	return m, nil
 }

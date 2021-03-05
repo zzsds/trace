@@ -17,7 +17,7 @@ import (
 // Server ...
 type Server interface {
 	Init(...Option)
-	Options() options
+	Options() Options
 	Name() string
 	Start() error
 	Stop() error
@@ -39,7 +39,7 @@ type Result struct {
 }
 
 type match struct {
-	opts  options
+	opts  Options
 	once  sync.Once
 	bid   bid.Server
 	queue chan interface{}
@@ -61,7 +61,7 @@ func (m *match) String() string {
 }
 
 func (m *match) Name() string {
-	return m.opts.name
+	return m.opts.Name
 }
 
 // Init ...
@@ -71,7 +71,7 @@ func (m *match) Init(opts ...Option) {
 		o(&m.opts)
 	}
 	m.once.Do(func() {
-		m.bid = bid.NewBid(bid.Name(m.opts.name))
+		m.bid = bid.NewBid(bid.Name(m.opts.Name))
 		m.queue = make(chan interface{})
 	})
 }
@@ -87,13 +87,13 @@ func (m *match) Bid() bid.Server {
 }
 
 // Options ...
-func (m *match) Options() options {
+func (m *match) Options() Options {
 	return m.opts
 }
 
 // Close ...
 func (m *match) Close() error {
-	m.bid.Init(bid.Name(m.opts.name))
+	m.bid.Init(bid.Name(m.opts.Name))
 	return m.Stop()
 }
 
@@ -103,7 +103,7 @@ func (m *match) Start() error {
 		return errors.New("match started")
 	}
 	var ctx context.Context
-	ctx, m.opts.cancel = context.WithCancel(context.Background())
+	ctx, m.opts.Cancel = context.WithCancel(context.Background())
 	m.setState(true)
 	return m.handle(ctx)
 }
@@ -113,7 +113,7 @@ func (m *match) Stop() error {
 		return errors.New("match stopped")
 	}
 	var err error
-	m.opts.cancel()
+	m.opts.Cancel()
 	m.setState(false)
 	return err
 }
@@ -121,13 +121,13 @@ func (m *match) Stop() error {
 func (m *match) setState(b bool) {
 	m.opts.mu.Lock()
 	defer m.opts.mu.Unlock()
-	m.opts.state = b
+	m.opts.State = b
 }
 
 func (m *match) State() bool {
 	m.opts.mu.Lock()
 	defer m.opts.mu.Unlock()
-	return m.opts.state
+	return m.opts.State
 }
 
 // Run ...
@@ -138,7 +138,7 @@ func (m *match) Run() error {
 	}
 
 	ch := make(chan os.Signal, 1)
-	if m.opts.signal {
+	if m.opts.Signal {
 		signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL)
 	}
 
@@ -146,7 +146,7 @@ func (m *match) Run() error {
 	// wait on kill signal
 	case <-ch:
 	// wait on context cancel
-	case <-m.opts.context.Done():
+	case <-m.opts.Context.Done():
 	}
 
 	return m.Close()

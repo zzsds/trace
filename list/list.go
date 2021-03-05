@@ -9,7 +9,7 @@ import (
 type Node = list.Element
 
 // NodeFunc ...
-type NodeFunc func(*Node) error
+type NodeFunc func(*Node) (*Node, error)
 
 // Server ...
 type Server interface {
@@ -24,8 +24,7 @@ type Server interface {
 	InsertBefore(interface{}, *Node) *Node
 	InsertAfter(interface{}, *Node) *Node
 	NodeList() []*Node
-	CallHeader(NodeFunc) interface{}
-	Header(Middleware) Middleware
+	CallListHandler(NodeFunc) error
 }
 
 // List ...
@@ -65,33 +64,18 @@ func (l *List) NodeList() []*Node {
 	return marks
 }
 
-// Header ...
-func (l *List) Header(m Middleware) Middleware {
-	return func(h Handler) Handler {
-		return m(h)
-	}
-}
-
-// CallHeader ...
-func (l *List) CallHeader(call NodeFunc) interface{} {
+// CallListHandler ...
+func (l *List) CallListHandler(call NodeFunc) error {
 	l.opts.Lock()
 	defer l.opts.Unlock()
 	for n := l.Front(); n != nil; n = n.Next() {
-		err := call(n)
+		c, err := call(n)
 		if err != nil {
+			return err
+		}
+		if c == nil {
 			break
 		}
 	}
 	return nil
 }
-
-// CallList ...
-// func (l *List) CallList(fn CallOption) {
-// 	l.opts.Lock()
-// 	defer l.opts.Unlock()
-// 	for n := l.Front(); n != nil; n = n.Next() {
-// 		if !fn(n) {
-// 			break
-// 		}
-// 	}
-// }

@@ -1,7 +1,7 @@
 package bid
 
 import (
-	"fmt"
+	"errors"
 	"log"
 
 	"github.com/zzsds/trade/list"
@@ -13,10 +13,10 @@ type Server interface {
 	Name() string
 	String() string
 	Add(*Unit) error
+	Cancel(*Unit) error
 	Buy() list.Server
 	Sell() list.Server
 	Queue() <-chan interface{}
-	Trade(interface{}, list.Server) error
 }
 
 // Bid ...
@@ -106,7 +106,7 @@ func (b *bid) add(l list.Server, u *Unit) *list.Node {
 	for n := l.Front(); n != nil; n = n.Next() {
 		v, ok := n.Value.(*Unit)
 		if !ok {
-			log.Println(fmt.Errorf("Parsing failed"))
+			log.Println("Parsing failed")
 			return nil
 		}
 		if v.Price == u.Price {
@@ -139,7 +139,38 @@ func (b *bid) add(l list.Server, u *Unit) *list.Node {
 	return nil
 }
 
-func (b *bid) Trade(v interface{}, object list.Server) error {
+func (b *bid) Cancel(unit *Unit) error {
+	var object list.Server
+	if unit.Type == Type_Buy {
+		object = b.buy
+	} else {
+		object = b.sell
+	}
+
+	return b.cancel(object, unit)
+}
+
+func (b *bid) cancel(l list.Server, u *Unit) error {
+	l.Lock()
+	defer l.Unlock()
+	for n := l.Front(); n != nil; n = n.Next() {
+		v, ok := n.Value.(*Unit)
+		if !ok {
+			return errors.New("Parsing failed")
+		}
+		if v.Price == u.Price && v.UID == u.UID {
+			if v.Amount > u.Amount {
+				v.Amount -= u.Amount
+				n.Value = v
+				break
+			}
+
+			if v.Amount <= u.Amount {
+				l.Remove(n)
+				break
+			}
+		}
+	}
 
 	return nil
 }
